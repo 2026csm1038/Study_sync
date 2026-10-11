@@ -1,0 +1,268 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #ffffff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --navy: #45406f;
+  --dark: #172033;
+  --muted: #666b7d;
+  --lavender: #f0efff;
+  --lavender-2: #e8e6ff;
+  --border: #dfe2ee;
+  --purple: #5c4ee5;
+}
+
+html { scroll-behavior: smooth; }
+body { min-width: 320px; background: #fff; }
+button, a { font: inherit; }
+button { cursor: pointer; }
+
+/* ---------- Layout shell ---------- */
+
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------- Header ---------- */
+
+.topbar {
+  height: 64px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4.3%;
+  background: #fff;
+  border-bottom: 1px solid #e0e1e8;
+  position: relative;
+  z-index: 10;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--navy);
+  text-decoration: none;
+  font-size: 28px;
+  font-weight: 750;
+  letter-spacing: -1.1px;
+}
+
+.brand-mark { width: 50px; height: 50px; object-fit: contain; }
+
+.login-button,
+.primary-button {
+  border: 0;
+  background: var(--navy);
+  color: white;
+  font-weight: 700;
+  border-radius: 5px;
+  box-shadow: 0 2px 0 rgba(35, 30, 65, 0.08);
+  transition: transform .16s ease, background .16s ease;
+}
+
+.login-button { padding: 9px 18px; font-size: 17px; }
+.primary-button { padding: 14px 21px; font-size: 17px; }
+
+.login-button:hover,
+.primary-button:hover { background: #38335e; transform: translateY(-1px); }
+
+/* ---------- Hero (smaller height) ---------- */
+
+.hero {
+  flex: 0 1 40%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.hero-wave {
+  position: absolute;
+  inset: 15px 0 0;
+  z-index: -1;
+  background: linear-gradient(110deg, #f3f1ff 0%, #eae9ff 54%, #f1efff 100%);
+  clip-path: polygon(0 8%, 7% 4%, 15% 8%, 24% 15%, 31% 29%, 40% 37%, 49% 38%, 58% 31%, 66% 20%, 75% 10%, 83% 5%, 91% 9%, 100% 4%, 100% 100%, 0 100%);
+}
+
+.hero-content {
+  width: 91.5%;
+  max-width: 1450px;
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 48% 52%;
+  align-items: center;
+}
+
+.hero-copy { padding: 8px 0; position: relative; z-index: 2; }
+.hero-copy h1 {
+  margin: 0 0 12px;
+  font-size: clamp(36px, 3.2vw, 50px);
+  line-height: 1;
+  letter-spacing: -2px;
+  color: #172033;
+}
+
+.hero-copy p {
+  margin: 0;
+  color: #625e80;
+  font-size: clamp(17px, 1.35vw, 22px);
+  line-height: 1.27;
+  letter-spacing: .1px;
+}
+
+.hero-actions { display: flex; gap: 13px; margin-top: 20px; flex-wrap: wrap; }
+
+.secondary-button {
+  padding: 13px 19px;
+  border-radius: 8px;
+  border: 1px solid #d8dbea;
+  background: white;
+  color: #172033;
+  font-weight: 650;
+  font-size: 17px;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+.secondary-button:hover { transform: translateY(-1px); box-shadow: 0 5px 18px rgba(45, 39, 85, .09); }
+
+.hero-art-wrap {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px 0 0 15px;
+  min-height: 0;
+}
+.hero-art {
+  display: block;
+  width: min(650px, 100%);
+  max-height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Features (bigger cards) ---------- */
+
+.features-section {
+  width: 91.5%;
+  max-width: 1450px;
+  margin: 0 auto;
+  padding: 14px 0 20px;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.features-section h2 { margin: 0 0 16px 15px; color: var(--navy); font-size: 28px; letter-spacing: -.6px; }
+.features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+.feature-card {
+  min-height: 0;
+  padding: 26px 28px;
+  border: 1px solid #dfe2ec;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(32, 31, 55, .02);
+}
+.feature-card--highlighted { border: 2px solid #7b50ff; padding: 25px 27px; }
+.feature-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #5149ad;
+  background: #f0efff;
+  margin-bottom: 14px;
+}
+.feature-card h3 { margin: 0 0 8px; color: #172033; font-size: 24px; line-height: 1.12; letter-spacing: -.5px; }
+.feature-card p { margin: 0; color: #666b7d; font-size: 17px; line-height: 1.3; max-width: 365px; }
+
+/* ---------- Footer ---------- */
+
+.footer {
+  margin-top: 0;
+  min-height: 36px;
+  flex-shrink: 0;
+  border-top: 1px solid #e0e1e8;
+  display: grid;
+  place-items: center;
+  color: #6b7081;
+  font-size: 14px;
+  background: #fff;
+}
+
+/* ---------- Misc ---------- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  background: #22213a;
+  color: #fff;
+  padding: 12px 17px;
+  border-radius: 9px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+  z-index: 50;
+  font-size: 14px;
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* ---------- Tablet / mobile: stacked layout needs scrolling ---------- */
+
+@media (max-width: 900px) {
+  html, body, #root { height: auto; overflow: auto; }
+  .app-shell { height: auto; min-height: 100dvh; overflow: visible; }
+
+  .topbar { height: 64px; padding: 0 5%; }
+  .brand { font-size: 24px; }
+  .brand-mark { width: 42px; height: 42px; }
+
+  .hero { flex: none; min-height: auto; }
+  .hero-content { grid-template-columns: 1fr; height: auto; min-height: auto; padding: 36px 0 20px; }
+  .hero-copy { padding: 0; }
+  .hero-art-wrap { padding: 20px 0 0; }
+  .hero-art { max-height: 300px; }
+
+  .features-section { flex: none; }
+  .features-grid { grid-template-columns: 1fr; }
+  .feature-card { min-height: 0; }
+}
+
+@media (max-width: 520px) {
+  .login-button { padding: 8px 13px; font-size: 15px; }
+  .hero-content, .features-section { width: 90%; }
+  .hero-copy h1 { font-size: 40px; }
+  .hero-copy p { font-size: 18px; }
+  .hero-actions { margin-top: 22px; }
+  .primary-button, .secondary-button { width: 100%; }
+  .features-section { padding-top: 14px; }
+  .features-section h2 { margin-left: 0; font-size: 24px; }
+  .feature-card { padding: 22px; }
+  .feature-card h3 { font-size: 21px; }
+}
