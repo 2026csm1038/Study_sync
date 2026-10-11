@@ -1,107 +1,46 @@
-import { BookOpen, Handshake, Upload } from 'lucide-react'
-import { useState } from 'react'
-import { FeatureCard } from './components/FeatureCard'
-import { isSupabaseConfigured } from './lib/supabase'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { GuestRoute, ProtectedRoute } from './components/RouteGuards'
+import { AuthProvider } from './context/AuthContext'
+import AdminHome from './pages/AdminHome'
+import ForgotPassword from './pages/ForgotPassword'
+import Home from './pages/Home'
+import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
+import Signup from './pages/Signup'
+import StudentHome from './pages/StudentHome'
 import './styles.css'
+import './auth.css'
 
 export default function App() {
-  const [message, setMessage] = useState('')
-
-  const showMessage = (text: string) => {
-    setMessage(text)
-    window.setTimeout(() => setMessage(''), 2600)
-  }
-
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="StudySync home">
-          <img src="/assets/logo-mark.png" alt="" className="brand-mark" />
-          <span>StudySync</span>
-        </a>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Home />} />
 
-        <button
-          className="login-button"
-          type="button"
-          onClick={() => showMessage('Login will be connected in the next implementation step.')}
-        >
-          Login
-        </button>
-      </header>
+          {/* only for people who are NOT logged in */}
+          <Route element={<GuestRoute />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+          </Route>
 
-      <main>
-        <section className="hero" aria-labelledby="hero-title">
-          <div className="hero-wave" aria-hidden="true" />
-          <div className="hero-content">
-            <div className="hero-copy">
-              <h1 id="hero-title">StudySync</h1>
-              <p>
-                Centralized Study Resources.<br />
-                Decentralized Student Power.
-              </p>
-              <div className="hero-actions">
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => showMessage('Resource browsing will be connected next.')}
-                >
-                  Browse Resources
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => showMessage('Upload and admin approval will be connected next.')}
-                >
-                  Upload Notes
-                </button>
-              </div>
-            </div>
+          {/* opened from the email link; must work with the temporary recovery session */}
+          <Route path="/reset-password" element={<ResetPassword />} />
 
-            <div className="hero-art-wrap">
-              <img
-                src="/assets/hero-illustration.png"
-                alt="Student studying with digital academic resources"
-                className="hero-art"
-              />
-            </div>
-          </div>
-        </section>
+          {/* students only: replace StudentHome with the Student Search page */}
+          <Route element={<ProtectedRoute role="student" />}>
+            <Route path="/student" element={<StudentHome />} />
+          </Route>
 
-        <section className="features-section" aria-labelledby="features-title">
-          <h2 id="features-title">Features</h2>
-          <div className="features-grid">
-            <FeatureCard
-              icon={BookOpen}
-              title="Access Quality Notes"
-              description="Centralized Study Resources. Decentralized Student Power."
-            />
-            <FeatureCard
-              icon={Upload}
-              title="Share & Upload"
-              description="Upload notes, resources, and useful materials for fellow students."
-              highlighted
-            />
-            <FeatureCard
-              icon={Handshake}
-              title="Collaborative Learning"
-              description="Discover shared resources and learn together with your peers."
-            />
-          </div>
-        </section>
-      </main>
+          {/* admins only: replace AdminHome with the Admin Dashboard */}
+          <Route element={<ProtectedRoute role="admin" />}>
+            <Route path="/admin" element={<AdminHome />} />
+          </Route>
 
-      <footer className="footer">© 2026 StudySync. All rights reserved.</footer>
-
-      {message && (
-        <div className="toast" role="status">
-          {message}
-        </div>
-      )}
-
-      {/* This confirms the frontend can load the Supabase client without requiring any tables yet. */}
-      <span className="sr-only">
-        Supabase connection: {isSupabaseConfigured ? 'configured' : 'not configured'}
-      </span>
-    </div>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
