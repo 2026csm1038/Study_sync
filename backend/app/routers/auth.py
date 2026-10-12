@@ -1,95 +1,233 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+"""Every authentication action for StudySync.
 
+The React app never talks to Supabase. It calls these endpoints, and this file
+talks to Supabase Auth on its behalf. Request/response shapes live in schemas/auth.py,
+and reads of the profiles table live in repositories/profiles.py.
+
+    POST /api/auth/signup           create an account
+    POST /api/auth/login            entry number OR email + password
+    POST /api/auth/refresh          swap a refresh token for fresh tokens
+    POST /api/auth/logout           end the session
+    POST /api/auth/forgot-password  email a reset link
+    POST /api/auth/reset-password   set a new password from the emailed link
+    GET  /api/auth/me               who am I?
+    GET  /api/auth/admin-check      example admin-only route
+"""
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from .. import deps, supabase_client
 from ..config import settings
 from ..deps import CurrentUser, get_current_user, require_admin
-from ..supabase_client import new_anon_client, supabase_admin
+from ..repositories import profiles
+from ..schemas.auth import (
+    EMAIL_RE,
+    ForgotPasswordRequest,
+    LoginRequest,
+    MessageOut,
+    RefreshRequest,
+    ResetPasswordRequest,
+    SessionOut,
+    SignupRequest,
+    SignupResponse,
+)
+from ..schemas.profile import ProfileOut
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# Same message for every failure, so the API never reveals whether an
+# One message for every login failure, so the API never reveals whether an
 # entry number or email is registered.
 INVALID_LOGIN = "Invalid entry number / email or password."
 
 
-class LoginRequest(BaseModel):
-    identifier: str = Field(min_length=3, max_length=254, description="Entry number or email")
-    password: str = Field(min_length=1, max_length=128)
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    expires_in: int | None = None
-
-
-class MeResponse(BaseModel):
-    id: str
-    email: str | None
-    full_name: str
-    entry_number: str | None
-    role: str
-
-
-@router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest):
-    """Log in with an entry number OR an email.
-
-    The browser sends whatever the student typed. If it is an entry number we
-    look up the matching email here on the server (so emails are never exposed
-    to the browser), then sign in with Supabase Auth and return the tokens.
-    """
+def _require_supabase() -> None:
     if not (settings.supabase_configured and settings.supabase_admin_configured):
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Supabase is not configured on the server.",
+            "The server is not configured for Supabase yet.",
         )
+
+
+def _build_session(auth_session) -> SessionOut:
+    """Turn a Supabase session into our response model, including the user's profile."""
+    user = auth_session.user
+    row = profiles.get_by_id(user.id)
+    if row is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Your account has no profile yet. Please contact an admin.",
+        )
+    return SessionOut(
+        access_token=auth_session.access_token,
+        refresh_token=auth_session.refresh_token,
+        expires_in=auth_session.expires_in,
+        profile=ProfileOut(
+            id=row.id,
+            email=user.email,
+            full_name=row.full_name,
+            entry_number=row.entry_number,
+            role=row.role,
+        ),
+    )
+
+
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+def signup(body: SignupRequest):
+    """Create an account. Every new account is a student; admins are promoted in the database."""
+    _require_supabase()
+
+    if profiles.entry_number_exists(body.entry_number):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This entry number is already registered.")
+
+    try:
+        result = supabase_client.new_anon_client().auth.sign_up(
+            {
+                "email": body.email,
+                "password": body.password,
+                "options": {
+                    # read by the database trigger that creates the profile row
+                    "data": {"full_name": body.full_name, "entry_number": body.entry_number},
+                    "email_redirect_to": f"{settings.frontend_url}/login",
+                },
+            }
+        )
+    except Exception as exc:
+        message = str(exc).lower()
+        if "already registered" in message or "database error" in message:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "This entry number or email is already registered."
+            )
+        if "rate limit" in message or "too many" in message:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts. Please wait a minute."
+            )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Could not create the account.")
+
+    user = result.user
+    # With "confirm email" on, an email that already exists comes back as a user with no identities.
+    if user is not None and user.identities is not None and len(user.identities) == 0:
+        raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
+
+    if result.session is None:
+        # email confirmation is on: the student must click the link in their inbox first
+        return SignupResponse(needs_email_confirmation=True)
+
+    return SignupResponse(needs_email_confirmation=False, session=_build_session(result.session))
+
+
+@router.post("/login", response_model=SessionOut)
+def login(body: LoginRequest):
+    """Log in with an entry number OR an email.
+
+    If it is an entry number we look up the matching email here on the server,
+    so emails are never exposed to the browser.
+    """
+    _require_supabase()
 
     identifier = body.identifier.strip()
 
     if "@" in identifier:
         email = identifier.lower()
     else:
-        rows = (
-            supabase_admin.table("profiles")
-            .select("email")
-            .eq("entry_number", identifier.upper())
-            .limit(1)
-            .execute()
-            .data
-        )
-        if not rows or not rows[0].get("email"):
+        row = profiles.get_by_entry_number(identifier)
+        if row is None or not row.email:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_LOGIN)
-        email = rows[0]["email"]
+        email = row.email
 
     try:
-        result = new_anon_client().auth.sign_in_with_password(
+        result = supabase_client.new_anon_client().auth.sign_in_with_password(
             {"email": email, "password": body.password}
         )
-        session = result.session
+        auth_session = result.session
     except Exception:
-        session = None
+        auth_session = None
 
-    if session is None:
+    if auth_session is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, INVALID_LOGIN)
 
-    return TokenResponse(
-        access_token=session.access_token,
-        refresh_token=session.refresh_token,
-        expires_in=session.expires_in,
+    return _build_session(auth_session)
+
+
+@router.post("/refresh", response_model=SessionOut)
+def refresh(body: RefreshRequest):
+    """Exchange a refresh token for a new access token (and a new refresh token)."""
+    _require_supabase()
+    try:
+        result = supabase_client.new_anon_client().auth.refresh_session(body.refresh_token)
+        auth_session = result.session
+    except Exception:
+        auth_session = None
+
+    if auth_session is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired. Please log in again.")
+    return _build_session(auth_session)
+
+
+@router.post("/logout", response_model=MessageOut)
+def logout(credentials=Depends(deps.bearer_scheme)):
+    """End the session on the Supabase side. Always succeeds, so a stale token never blocks logout."""
+    if credentials is not None:
+        try:
+            supabase_client.admin().auth.admin.sign_out(credentials.credentials, "local")
+        except Exception:
+            pass
+    return MessageOut(message="Logged out.")
+
+
+@router.post("/forgot-password", response_model=MessageOut)
+def forgot_password(body: ForgotPasswordRequest):
+    """Email a reset link. The answer is always the same, so nobody can use this
+    to find out which emails are registered."""
+    _require_supabase()
+    email = body.email.strip().lower()
+    generic = MessageOut(message="If an account exists for that email, a reset link is on its way.")
+
+    if not EMAIL_RE.match(email):
+        return generic
+    try:
+        supabase_client.new_anon_client().auth.reset_password_for_email(
+            email, {"redirect_to": f"{settings.frontend_url}/reset-password"}
+        )
+    except Exception as exc:
+        message = str(exc).lower()
+        if "rate limit" in message or "too many" in message:
+            raise HTTPException(
+                status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests. Please wait a minute."
+            )
+    return generic
+
+
+@router.post("/reset-password", response_model=MessageOut)
+def reset_password(body: ResetPasswordRequest):
+    """Set a new password using the one-time `token_hash` from the reset email link."""
+    _require_supabase()
+    expired = HTTPException(
+        status.HTTP_400_BAD_REQUEST,
+        "This reset link is invalid or has expired. Please request a new one.",
     )
+    try:
+        verified = supabase_client.new_anon_client().auth.verify_otp(
+            {"token_hash": body.token_hash, "type": "recovery"}
+        )
+        user = verified.user
+    except Exception:
+        raise expired
+    if user is None:
+        raise expired
+
+    try:
+        supabase_client.admin().auth.admin.update_user_by_id(user.id, {"password": body.password})
+    except Exception:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Could not update the password. Try a different password.",
+        )
+    return MessageOut(message="Password updated.")
 
 
-@router.get("/me", response_model=MeResponse)
+@router.get("/me", response_model=ProfileOut)
 def me(user: CurrentUser = Depends(get_current_user)):
-    """Who am I? Also a quick way to test that a token works."""
-    return MeResponse(
-        id=user.id,
-        email=user.email,
-        full_name=user.full_name,
-        entry_number=user.entry_number,
-        role=user.role,
-    )
+    """Who am I? The frontend calls this on page load to restore the session."""
+    return user
 
 
 @router.get("/admin-check")

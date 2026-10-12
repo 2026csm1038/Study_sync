@@ -2,7 +2,6 @@ import { BookOpen, Handshake, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { FeatureCard } from '../components/FeatureCard'
 import { homePathFor, useAuth } from '../context/AuthContext'
-import { isSupabaseConfigured } from '../lib/supabase'
 
 export default function Home() {
   const navigate = useNavigate()
@@ -79,11 +78,6 @@ export default function Home() {
       </main>
 
       <footer className="footer">© 2026 StudySync. All rights reserved.</footer>
-
-      {/* This confirms the frontend can load the Supabase client without requiring any tables yet. */}
-      <span className="sr-only">
-        Supabase connection: {isSupabaseConfigured ? 'configured' : 'not configured'}
-      </span>
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { homePathFor, useAuth } from '../context/AuthContext'
 type LocationState = { from?: string; notice?: string } | null
 
 export default function Login() {
-  const { signIn, configured } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const state = location.state as LocationState
@@ -48,11 +48,6 @@ export default function Login() {
       <p className="auth-subtitle">Login to access academic resources.</p>
 
       {state?.notice && <div className="auth-banner auth-banner--success">{state.notice}</div>}
-      {!configured && (
-        <div className="auth-banner auth-banner--error">
-          Supabase is not configured yet. Add your keys to <code>frontend/.env</code>.
-        </div>
-      )}
       {formError && (
         <div className="auth-banner auth-banner--error" role="alert">
           {formError}
@@ -79,7 +74,7 @@ export default function Login() {
           disabled={submitting}
         />
 
-        <button className="auth-submit" type="submit" disabled={submitting || !configured}>
+        <button className="auth-submit" type="submit" disabled={submitting}>
           {submitting ? 'Logging in…' : 'Login'}
         </button>
       </form>

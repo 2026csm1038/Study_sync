@@ -1,5 +1,7 @@
 from supabase import Client, create_client
+
 from .config import settings
+from .exceptions import ServiceUnavailable
 
 # Shared client with the public (anon) key. Used only for non-user-specific work.
 supabase: Client | None = None
@@ -13,6 +15,14 @@ supabase_admin: Client | None = None
 
 if settings.supabase_admin_configured:
     supabase_admin = create_client(settings.supabase_url, settings.supabase_service_role_key)
+
+
+def admin() -> Client:
+    """The admin client, or a clear 503 if the service role key is missing.
+    Repositories call this on every request."""
+    if supabase_admin is None:
+        raise ServiceUnavailable("Server is missing SUPABASE_SERVICE_ROLE_KEY.")
+    return supabase_admin
 
 
 def new_anon_client() -> Client:

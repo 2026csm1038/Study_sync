@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { isValidEmail } from '../lib/validation'
 
 export default function ForgotPassword() {
-  const { sendPasswordReset, configured } = useAuth()
+  const { sendPasswordReset } = useAuth()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
@@ -67,7 +67,7 @@ export default function ForgotPassword() {
               autoComplete="email"
               disabled={submitting}
             />
-            <button className="auth-submit" type="submit" disabled={submitting || !configured}>
+            <button className="auth-submit" type="submit" disabled={submitting}>
               {submitting ? 'Sending…' : 'Send reset link'}
             </button>
           </form>

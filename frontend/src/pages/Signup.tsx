@@ -11,7 +11,7 @@ type Errors = Partial<
 >
 
 export default function Signup() {
-  const { signUp, configured } = useAuth()
+  const { signUp } = useAuth()
   const navigate = useNavigate()
 
   const [fullName, setFullName] = useState('')
@@ -85,11 +85,6 @@ export default function Signup() {
       <h2 className="auth-title">Create your account</h2>
       <p className="auth-subtitle">Sign up to access academic resources.</p>
 
-      {!configured && (
-        <div className="auth-banner auth-banner--error">
-          Supabase is not configured yet. Add your keys to <code>frontend/.env</code>.
-        </div>
-      )}
       {formError && (
         <div className="auth-banner auth-banner--error" role="alert">
           {formError}
@@ -145,7 +140,7 @@ export default function Signup() {
           disabled={submitting}
         />
 
-        <button className="auth-submit" type="submit" disabled={submitting || !configured}>
+        <button className="auth-submit" type="submit" disabled={submitting}>
           {submitting ? 'Creating account…' : 'Sign Up'}
         </button>
       </form>

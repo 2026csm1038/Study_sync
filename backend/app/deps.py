@@ -1,61 +1,46 @@
-from dataclasses import dataclass
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from .supabase_client import supabase_admin
+from . import supabase_client
+from .repositories import profiles
+from .schemas.profile import ProfileOut
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-
-@dataclass(frozen=True)
-class CurrentUser:
-    id: str
-    email: str | None
-    full_name: str
-    entry_number: str | None
-    role: str  # "student" or "admin"
+# The logged-in user, as seen by route functions: id, email, full_name, entry_number, role.
+CurrentUser = ProfileOut
 
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> CurrentUser:
-    """Verify the Supabase access token sent as `Authorization: Bearer <token>`
-    and load the caller's profile (including role) from the database."""
-    if supabase_admin is None:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Server is missing SUPABASE_SERVICE_ROLE_KEY.",
-        )
+    """Verify the access token sent as `Authorization: Bearer <token>`
+    and load the caller's profile (including role) from the database.
+
+    Put this on every route that needs a logged-in user."""
+    admin = supabase_client.admin()  # 503 if the service role key is missing
+
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated.")
 
     try:
-        user_response = supabase_admin.auth.get_user(credentials.credentials)
+        user_response = admin.auth.get_user(credentials.credentials)
         user = user_response.user if user_response else None
     except Exception:
         user = None
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token.")
 
-    rows = (
-        supabase_admin.table("profiles")
-        .select("full_name, entry_number, role")
-        .eq("id", user.id)
-        .limit(1)
-        .execute()
-        .data
-    )
-    if not rows:
+    row = profiles.get_by_id(user.id)
+    if row is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Profile not found.")
 
-    profile = rows[0]
     return CurrentUser(
-        id=user.id,
+        id=row.id,
         email=user.email,
-        full_name=profile["full_name"],
-        entry_number=profile.get("entry_number"),
-        role=profile["role"],
+        full_name=row.full_name,
+        entry_number=row.entry_number,
+        role=row.role,
     )
 
 

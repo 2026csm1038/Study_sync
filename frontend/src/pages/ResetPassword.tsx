@@ -1,17 +1,19 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { AuthLayout } from '../components/AuthLayout'
 import { PasswordField } from '../components/FormFields'
 import { useAuth } from '../context/AuthContext'
 import { validatePassword } from '../lib/validation'
 
 /**
- * Opened from the link in the reset email. Supabase puts a temporary
- * "recovery" session in the URL; supabase-js picks it up automatically.
+ * Opened from the link in the reset email: /reset-password?token_hash=...&type=recovery
+ * The one-time token is sent to the backend together with the new password.
  */
 export default function ResetPassword() {
-  const { loading, session, updatePassword, signOut } = useAuth()
+  const { resetPassword } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const tokenHash = searchParams.get('token_hash')
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -22,6 +24,7 @@ export default function ResetPassword() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setFormError('')
+    if (!tokenHash) return
 
     const next: typeof errors = {}
     const problem = validatePassword(password)
@@ -32,8 +35,7 @@ export default function ResetPassword() {
 
     setSubmitting(true)
     try {
-      await updatePassword(password)
-      await signOut()
+      await resetPassword(tokenHash, password)
       navigate('/login', {
         replace: true,
         state: { notice: 'Password updated. Please log in with your new password.' },
@@ -45,15 +47,7 @@ export default function ResetPassword() {
     }
   }
 
-  if (loading) {
-    return (
-      <AuthLayout>
-        <p className="auth-subtitle">Checking your reset link…</p>
-      </AuthLayout>
-    )
-  }
-
-  if (!session) {
+  if (!tokenHash) {
     return (
       <AuthLayout>
         <h2 className="auth-title">Link expired</h2>
@@ -74,7 +68,8 @@ export default function ResetPassword() {
 
       {formError && (
         <div className="auth-banner auth-banner--error" role="alert">
-          {formError}
+          {formError}{' '}
+          <Link to="/forgot-password">Request a new link</Link>
         </div>
       )}
 

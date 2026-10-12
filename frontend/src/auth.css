@@ -8,7 +8,7 @@
   background: #f6f7fe;
 }
 
-
+/* ---------- left column ---------- */
 .auth-left {
   position: sticky; /* stays put while a long form (Sign Up) scrolls on the right */
   top: 0;
@@ -166,6 +166,7 @@
   border-radius: 10px;
 }
 
+/* ---------- small screens ---------- */
 @media (max-width: 900px) {
   .auth-page { grid-template-columns: 1fr; }
   .auth-left { position: static; height: auto; padding: 28px 24px 8px; }
