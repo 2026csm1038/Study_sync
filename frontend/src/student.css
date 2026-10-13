@@ -1,0 +1,97 @@
+/* Student pages (Page 3 onward). Every class starts with st- so nothing clashes with styles.css / auth.css. */
+
+.st-shell { display: flex; height: 100vh; height: 100dvh; background: #f7f8fd; }
+
+/* ---------- sidebar ---------- */
+.st-sidebar {
+  width: 250px; flex-shrink: 0; display: flex; flex-direction: column;
+  padding: 22px 16px; background: #06142e; color: #c9d1e6;
+}
+.st-brand {
+  display: flex; align-items: center; gap: 10px; padding: 0 8px 26px;
+  color: #fff; text-decoration: none; font-size: 22px; font-weight: 750; letter-spacing: -0.6px;
+}
+.st-brand img { width: 38px; height: 38px; object-fit: contain; }
+.st-nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.st-nav-link {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px;
+  border: 0; border-radius: 10px; background: transparent; color: inherit;
+  text-decoration: none; font-size: 15px; font-weight: 600; text-align: left;
+}
+.st-nav-link:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.st-nav-link.active { background: var(--purple); color: #fff; box-shadow: 0 6px 16px rgba(92, 78, 229, 0.35); }
+.st-divider { width: 100%; margin: 10px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.14); }
+.st-user {
+  display: flex; align-items: center; gap: 10px; padding: 12px 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+.st-avatar {
+  width: 38px; height: 38px; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 50%; background: var(--purple); color: #fff; font-weight: 700;
+}
+.st-user-text { display: flex; flex-direction: column; min-width: 0; font-size: 13px; }
+.st-user-text strong { color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-user-text span { color: #98a3c0; }
+
+/* ---------- page area ---------- */
+.st-main { flex: 1; min-width: 0; overflow-y: auto; }
+.st-page { max-width: 1100px; margin: 0 auto; padding: 40px 36px 56px; }
+.st-page h1 { margin: 0; font-size: 32px; letter-spacing: -0.8px; color: var(--dark); }
+.st-sub { margin: 6px 0 26px; color: var(--muted); }
+.st-placeholder { padding: 48px 36px; color: var(--dark); }
+
+/* ---------- search bar ---------- */
+.st-searchbar { display: flex; gap: 14px; }
+.st-input {
+  flex: 1; display: flex; align-items: center; gap: 12px; padding: 0 18px; height: 54px;
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; color: var(--muted);
+}
+.st-input:focus-within { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(92, 78, 229, 0.15); }
+.st-input input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; color: var(--dark); }
+.st-search-btn {
+  height: 54px; padding: 0 38px; border: 0; border-radius: 12px;
+  background: var(--purple); color: #fff; font-weight: 700; font-size: 15px;
+}
+.st-search-btn:hover { background: #4b3fd0; }
+
+/* ---------- filters ---------- */
+.st-filters { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 22px 0 8px; }
+.st-filter { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.st-select { position: relative; }
+.st-select select {
+  width: 100%; height: 42px; padding: 0 32px 0 12px; appearance: none;
+  background: #fff; border: 1px solid var(--border); border-radius: 10px;
+  color: var(--dark); font: inherit; font-size: 13px; font-weight: 500;
+}
+.st-select select:focus { outline: 0; border-color: var(--purple); }
+.st-select svg { position: absolute; right: 10px; top: 13px; pointer-events: none; color: var(--muted); }
+
+/* ---------- results ---------- */
+.st-results { margin-top: 22px; }
+.st-empty { padding: 48px 0; text-align: center; color: var(--muted); }
+.st-count { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.st-result-list { margin: 0; padding: 8px 16px; list-style: none; background: #fff; border: 1px solid var(--border); border-radius: 14px; }
+.st-result { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid #eef0f7; }
+.st-result:last-child { border-bottom: 0; }
+.st-result-icon { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border-radius: 12px; }
+.st-result-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.st-result-text strong { color: var(--dark); }
+.st-result-text span { font-size: 12px; color: var(--muted); }
+.st-chip { padding: 5px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.st-view {
+  min-width: 96px; height: 36px; border: 1px solid var(--purple); border-radius: 8px;
+  background: #fff; color: var(--purple); font-weight: 600;
+}
+.st-view:hover:not(:disabled) { background: var(--lavender); }
+.st-view:disabled { opacity: 0.45; cursor: not-allowed; }
+.st-tag-paper { background: #ece9ff; color: #5c4ee5; }
+.st-tag-solution { background: #dff5ee; color: #2a8a6b; }
+.st-tag-assignment { background: #fdeadf; color: #d9722e; }
+.st-tag-quiz { background: #e5eefc; color: #3b6fd0; }
+
+@media (max-width: 1000px) { .st-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  .st-sidebar { width: 72px; }
+  .st-sidebar span, .st-user-text { display: none; }
+  .st-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

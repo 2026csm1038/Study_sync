@@ -41,6 +41,8 @@ type SignUpResult = {
 
 type AuthContextValue = {
   loading: boolean
+  /** true when a login token is saved (RouteGuards uses this). */
+  session: boolean
   profile: Profile | null
   signIn: (identifier: string, password: string) => Promise<Profile>
   signUp: (input: SignUpInput) => Promise<SignUpResult>
@@ -143,7 +145,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthContextValue>(
-    () => ({ loading, profile, signIn, signUp, signOut, sendPasswordReset, resetPassword }),
+    () => ({
+      loading,
+      session: profile !== null || tokenStore.access !== null,
+      profile,
+      signIn,
+      signUp,
+      signOut,
+      sendPasswordReset,
+      resetPassword,
+    }),
     [loading, profile, signIn, signUp, signOut, sendPasswordReset, resetPassword],
   )
 

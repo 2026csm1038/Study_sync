@@ -7,7 +7,10 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import Signup from './pages/Signup'
-import StudentHome from './pages/StudentHome'
+import { StudentLayout } from './components/StudentLayout'
+import StudentProfile from './pages/student/StudentProfile'
+import StudentSearch from './pages/student/StudentSearch'
+import UploadPdf from './pages/student/UploadPdf'
 import './styles.css'
 import './auth.css'
 
@@ -28,9 +31,13 @@ export default function App() {
           {/* opened from the email link; must work with the temporary recovery session */}
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* students only: replace StudentHome with the Student Search page */}
+          {/* students only: every student page shares the sidebar (StudentLayout) */}
           <Route element={<ProtectedRoute role="student" />}>
-            <Route path="/student" element={<StudentHome />} />
+            <Route element={<StudentLayout />}>
+              <Route path="/student" element={<StudentSearch />} />
+              <Route path="/student/upload" element={<UploadPdf />} />
+              <Route path="/student/profile" element={<StudentProfile />} />
+            </Route>
           </Route>
 
           {/* admins only: replace AdminHome with the Admin Dashboard */}
