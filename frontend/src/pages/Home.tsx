@@ -66,7 +66,6 @@ export default function Home() {
               icon={Upload}
               title="Share & Upload"
               description="Upload notes, resources, and useful materials for fellow students."
-              highlighted
             />
             <FeatureCard
               icon={Handshake}
