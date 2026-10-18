@@ -1,0 +1,57 @@
+﻿/* Upload PDF page (Page 4). Every class starts with up- so nothing clashes with other styles. */
+
+.up-card { position: relative; max-width: 760px; padding: 28px; background: #fff; border: 1px solid var(--border); border-radius: 16px; }
+.up-card h2 { margin: 0 0 18px; font-size: 18px; color: var(--dark); }
+
+/* ---------- drop zone ---------- */
+.up-drop {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 130px; padding: 20px; background: #f6f9fe; border: 1.5px dashed #c9d3ec; border-radius: 12px;
+  color: var(--muted); font-size: 12px; text-align: center; cursor: pointer;
+}
+.up-drop strong { font-size: 14px; color: var(--purple); }
+.up-drop:hover, .up-drop-active { background: var(--lavender); border-color: var(--purple); }
+.up-drop:focus-within { outline: 3px solid rgba(92, 78, 229, 0.25); }
+.up-drop-error { border-color: #d64545; }
+.up-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.up-selected { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 14px; background: var(--lavender); border-radius: 10px; color: var(--purple); }
+.up-selected strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--dark); }
+.up-selected span { font-size: 12px; color: var(--muted); }
+.up-selected button { display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); }
+.up-selected button:hover { color: #d64545; }
+
+/* ---------- fields ---------- */
+.up-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; margin-top: 22px; }
+.up-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.up-field select, .up-field input {
+  height: 44px; padding: 0 12px; background: #f6f9fe; border: 1px solid var(--border); border-radius: 10px;
+  color: var(--dark); font: inherit; font-size: 14px; font-weight: 500;
+}
+.up-field select:focus, .up-field input:focus { outline: 0; border-color: var(--purple); box-shadow: 0 0 0 3px rgba(92, 78, 229, 0.15); }
+/* same custom arrow as the Page 3 filters */
+.up-field select {
+  padding-right: 34px; appearance: none;
+  background: #f6f9fe url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23666b7d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+}
+
+.up-error { margin: 6px 0 0; font-size: 12px; font-style: normal; font-weight: 500; color: #d64545; }
+.up-field .up-error { margin: 0; }
+.up-notice { margin: 18px 0 0; padding: 10px 14px; background: #fff7e6; border-radius: 10px; color: #8a5a00; font-size: 13px; }
+
+/* ---------- submit ---------- */
+.up-actions { display: flex; justify-content: flex-end; margin-top: 28px; }
+.up-submit { height: 44px; padding: 0 28px; border: 0; border-radius: 10px; background: var(--purple); color: #fff; font-weight: 700; }
+.up-submit:hover:not(:disabled) { background: #4b3fd0; }
+.up-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ---------- success toast ---------- */
+.up-toast {
+  position: fixed; top: 24px; right: 24px; z-index: 20; display: flex; align-items: center; gap: 12px;
+  min-width: 280px; padding: 14px 18px; background: #eaf7ef; border: 1px solid #b6e2c6; border-radius: 12px;
+  color: #2a8a53; box-shadow: 0 10px 28px rgba(23, 32, 51, 0.12);
+}
+.up-toast strong { display: block; font-size: 14px; }
+.up-toast span { font-size: 12px; color: #4f7f63; }
+
+@media (max-width: 720px) { .up-grid { grid-template-columns: 1fr; } }
