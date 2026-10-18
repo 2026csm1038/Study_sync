@@ -4,3 +4,7 @@ supabase==2.11.0
 python-dotenv==1.0.1
 pytest==8.3.4
 httpx==0.28.1
+google-api-python-client==2.187.0
+google-auth==2.41.1
+python-multipart==0.0.20
+pypdf==6.21.1

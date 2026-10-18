@@ -57,6 +57,7 @@ backend/logs/
 
 uploads/
 backend/uploads/
+backend/secrets/
 
 
 tmp/
