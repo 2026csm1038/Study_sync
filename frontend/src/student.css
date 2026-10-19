@@ -7,11 +7,12 @@
   width: 250px; flex-shrink: 0; display: flex; flex-direction: column;
   padding: 22px 16px; background: #06142e; color: #c9d1e6;
 }
+
 .st-brand {
   display: flex; align-items: center; gap: 10px; padding: 0 8px 26px;
   color: #fff; text-decoration: none; font-size: 22px; font-weight: 750; letter-spacing: -0.6px;
 }
-.st-brand img { width: 38px; height: 38px; object-fit: contain; }
+.st-brand img { width: 60px; height: 60px; object-fit: contain; }
 .st-nav { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .st-nav-link {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px;

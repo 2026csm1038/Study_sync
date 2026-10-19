@@ -39,6 +39,9 @@ type SignUpResult = {
   profile: Profile | null
 }
 
+/** What the reset link gave us: a one-time token_hash, or an access_token. */
+export type ResetLink = { token_hash: string } | { access_token: string }
+
 type AuthContextValue = {
   loading: boolean
   /** true when a login token is saved (RouteGuards uses this). */
@@ -48,7 +51,9 @@ type AuthContextValue = {
   signUp: (input: SignUpInput) => Promise<SignUpResult>
   signOut: () => Promise<void>
   sendPasswordReset: (email: string) => Promise<void>
-  resetPassword: (tokenHash: string, password: string) => Promise<void>
+  resetPassword: (link: ResetLink, password: string) => Promise<void>
+  confirmEmail: (tokenHash: string) => Promise<void>
+  resendConfirmation: (email: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -136,12 +141,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api('/api/auth/forgot-password', { method: 'POST', body: { email }, auth: false })
   }, [])
 
-  const resetPassword = useCallback(async (tokenHash: string, password: string) => {
+  const resetPassword = useCallback(async (link: ResetLink, password: string) => {
     await api('/api/auth/reset-password', {
       method: 'POST',
-      body: { token_hash: tokenHash, password },
+      body: { ...link, password },
       auth: false,
     })
+  }, [])
+
+  const confirmEmail = useCallback(async (tokenHash: string) => {
+    await api('/api/auth/confirm-email', {
+      method: 'POST',
+      body: { token_hash: tokenHash },
+      auth: false,
+    })
+  }, [])
+
+  const resendConfirmation = useCallback(async (email: string) => {
+    await api('/api/auth/resend-confirmation', { method: 'POST', body: { email }, auth: false })
   }, [])
 
   const value = useMemo<AuthContextValue>(
@@ -154,8 +171,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       sendPasswordReset,
       resetPassword,
+      confirmEmail,
+      resendConfirmation,
     }),
-    [loading, profile, signIn, signUp, signOut, sendPasswordReset, resetPassword],
+    [loading, profile, signIn, signUp, signOut, sendPasswordReset, resetPassword, confirmEmail, resendConfirmation],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

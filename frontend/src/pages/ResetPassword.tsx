@@ -1,19 +1,31 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/AuthLayout'
 import { PasswordField } from '../components/FormFields'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, type ResetLink } from '../context/AuthContext'
+import { clearAuthLinkFromUrl, describeLinkError, readAuthLink, type AuthLink } from '../lib/authLink'
 import { validatePassword } from '../lib/validation'
 
 /**
- * Opened from the link in the reset email: /reset-password?token_hash=...&type=recovery
- * The one-time token is sent to the backend together with the new password.
+ * Opened from the link in the reset email. Two link shapes are supported:
+ *   /reset-password?token_hash=...&type=recovery        (our custom email template)
+ *   /reset-password#access_token=...&type=recovery      (Supabase's default template)
+ * The token is sent to the backend together with the new password.
  */
 export default function ResetPassword() {
   const { resetPassword } = useAuth()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const tokenHash = searchParams.get('token_hash')
+
+  // read once, then remove the token from the address bar
+  const [link] = useState<AuthLink>(() => readAuthLink())
+  useEffect(() => clearAuthLinkFromUrl(), [])
+  const resetLink: ResetLink | null = link.errorCode
+    ? null
+    : link.tokenHash
+      ? { token_hash: link.tokenHash }
+      : link.accessToken && link.type === 'recovery'
+        ? { access_token: link.accessToken }
+        : null
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -24,7 +36,7 @@ export default function ResetPassword() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setFormError('')
-    if (!tokenHash) return
+    if (!resetLink) return
 
     const next: typeof errors = {}
     const problem = validatePassword(password)
@@ -35,7 +47,7 @@ export default function ResetPassword() {
 
     setSubmitting(true)
     try {
-      await resetPassword(tokenHash, password)
+      await resetPassword(resetLink, password)
       navigate('/login', {
         replace: true,
         state: { notice: 'Password updated. Please log in with your new password.' },
@@ -47,12 +59,14 @@ export default function ResetPassword() {
     }
   }
 
-  if (!tokenHash) {
+  if (!resetLink) {
     return (
       <AuthLayout>
         <h2 className="auth-title">Link expired</h2>
         <p className="auth-subtitle">
-          This reset link is invalid or has expired. Request a new one to continue.
+          {link.errorCode
+            ? describeLinkError(link).replace(' below', '')
+            : 'This reset link is invalid or has expired. Request a new one to continue.'}
         </p>
         <Link className="auth-submit auth-submit--link" to="/forgot-password">
           Request a new link

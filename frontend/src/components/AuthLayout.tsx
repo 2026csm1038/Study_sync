@@ -10,7 +10,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
     <div className="auth-page">
       <section className="auth-left">
         <Link to="/" className="auth-brand" aria-label="StudySync home">
-          <img src="/assets/logo-mark.png" alt="" />
+          <img src="/assets/logo-mark.png" alt=""  />
           <span>
             Study<em>Sync</em>
           </span>

@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext'
 import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import ConfirmEmail from './pages/ConfirmEmail'
 import ResetPassword from './pages/ResetPassword'
 import Signup from './pages/Signup'
 import { StudentLayout } from './components/StudentLayout'
@@ -35,6 +36,8 @@ export default function App() {
 
           {/* opened from the email link; must work with the temporary recovery session */}
           <Route path="/reset-password" element={<ResetPassword />} />
+
+          <Route path="/confirm-email" element={<ConfirmEmail />} />
 
           {/* students only: every student page shares the sidebar (StudentLayout) */}
           <Route element={<ProtectedRoute role="student" />}>

@@ -7,6 +7,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from app.routers import auth as auth_mod
+from app.schemas import auth as auth_schema
 
 from .conftest import ADMIN, STUDENT, as_user, make_session
 
@@ -64,11 +65,86 @@ def test_signup_duplicate_email_variants(env):
     assert env.client.post("/api/auth/signup", json=SIGNUP).status_code == 409
     env.anon.auth.sign_up.side_effect = Exception("User already registered")                              # confirmation off
     assert env.client.post("/api/auth/signup", json=SIGNUP).status_code == 409
-    env.anon.auth.sign_up.side_effect = Exception("Database error saving new user")                       # unique index race
-    assert env.client.post("/api/auth/signup", json=SIGNUP).status_code == 409
+    env.anon.auth.sign_up.side_effect = Exception("something else broke")
+    assert env.client.post("/api/auth/signup", json=SIGNUP).status_code == 400
+
+
+def test_signup_sends_link_to_confirm_page_and_makes_no_profile(env):
+    """The profile row is made by the database AFTER the email is confirmed, never by this endpoint."""
+    env.anon.auth.sign_up.return_value = NS(user=NS(id="u3", email="new@x.com", identities=[object()]), session=None)
+    before = len(env.db["profiles"])
+    assert env.client.post("/api/auth/signup", json=SIGNUP).status_code == 201
+    assert len(env.db["profiles"]) == before
+    sent = env.anon.auth.sign_up.call_args.args[0]
+    assert sent["options"]["email_redirect_to"] == "http://localhost:5173/confirm-email"
+
+
+def test_signup_email_rate_limit_has_a_clear_message(env):
+    """Supabase's built-in mailer allows only a few emails per hour for the whole project."""
+    err = Exception("email rate limit exceeded")
+    err.code = "over_email_send_rate_limit"
+    err.status = 429
+    env.anon.auth.sign_up.side_effect = err
+    r = env.client.post("/api/auth/signup", json=SIGNUP)
+    assert r.status_code == 429 and "emails" in r.json()["detail"]
+
+    other = Exception("too many requests")
+    other.code = "over_request_rate_limit"
+    env.anon.auth.sign_up.side_effect = other
+    r = env.client.post("/api/auth/signup", json=SIGNUP)
+    assert r.status_code == 429 and "emails" not in r.json()["detail"]
+
+
+def test_signup_only_allows_college_email_domains(env, monkeypatch):
+    monkeypatch.setattr(auth_schema, "settings", NS(allowed_email_domains=["iitrpr.ac.in"]))
+    env.anon.auth.sign_up.return_value = NS(user=NS(id="u3", email="n", identities=[object()]), session=None)
+    assert env.client.post("/api/auth/signup", json={**SIGNUP, "email": "a@gmail.com"}).status_code == 422
+    assert env.client.post("/api/auth/signup", json={**SIGNUP, "email": "a@evil.com@iitrpr.ac.in.x.com"}).status_code == 422
+    assert env.client.post("/api/auth/signup", json={**SIGNUP, "email": "A@IITRPR.ac.in"}).status_code == 201
+
+
+# ------------------------------------------------- email confirmation ---
+
+def test_confirm_email(env):
+    env.anon.auth.verify_otp.return_value = NS(user=NS(id="u3"), session=make_session())
+    r = env.client.post("/api/auth/confirm-email", json={"token_hash": "th"})
+    assert r.status_code == 200
+    env.anon.auth.verify_otp.assert_called_with({"token_hash": "th", "type": "signup"})
+
+
+def test_confirm_email_bad_or_expired_link(env):
+    env.anon.auth.verify_otp.side_effect = Exception("Email link is invalid or has expired")
+    r = env.client.post("/api/auth/confirm-email", json={"token_hash": "old"})
+    assert r.status_code == 400 and "expired" in r.json()["detail"]
+
+
+def test_resend_confirmation_never_reveals_accounts(env):
+    ok = env.client.post("/api/auth/resend-confirmation", json={"email": "new@x.com"})
+    env.anon.auth.resend.side_effect = Exception("User not found")
+    unknown = env.client.post("/api/auth/resend-confirmation", json={"email": "nobody@x.com"})
+    garbage = env.client.post("/api/auth/resend-confirmation", json={"email": "garbage"})
+    assert ok.status_code == unknown.status_code == garbage.status_code == 200
+    assert ok.json() == unknown.json() == garbage.json()
+    sent = env.anon.auth.resend.call_args_list[0].args[0]
+    assert sent["type"] == "signup" and sent["options"]["email_redirect_to"].endswith("/confirm-email")
+
+
+def test_resend_confirmation_reports_email_limit(env):
+    err = Exception("email rate limit exceeded")
+    err.code = "over_email_send_rate_limit"
+    env.anon.auth.resend.side_effect = err
+    assert env.client.post("/api/auth/resend-confirmation", json={"email": "new@x.com"}).status_code == 429
 
 
 # ----------------------------------------------------------------- login ---
+
+def test_login_before_confirming_email_says_so(env):
+    err = Exception("Email not confirmed")
+    err.code = "email_not_confirmed"
+    env.anon.auth.sign_in_with_password.side_effect = err
+    r = env.client.post("/api/auth/login", json={"identifier": "v@x.com", "password": "abcdefg1"})
+    assert r.status_code == 403 and "confirm your email" in r.json()["detail"]
+
 
 def test_login_with_entry_number(env):
     r = env.client.post("/api/auth/login", json={"identifier": "2026csm1038", "password": "pw"})
@@ -127,6 +203,30 @@ def test_reset_password(env):
     assert r.status_code == 200
     env.anon.auth.verify_otp.assert_called_with({"token_hash": "th", "type": "recovery"})
     env.admin.auth.admin.update_user_by_id.assert_called_with("u1", {"password": "newpass12"})
+
+
+def test_reset_password_with_access_token_from_default_template(env):
+    """Supabase's default email verifies the link first, then redirects with an access_token."""
+    env.admin.auth.get_user.return_value = NS(user=NS(id="u1", email="v@x.com"))
+    r = env.client.post("/api/auth/reset-password", json={"access_token": "AT-from-link", "password": "newpass12"})
+    assert r.status_code == 200
+    env.admin.auth.get_user.assert_called_with("AT-from-link")
+    env.anon.auth.verify_otp.assert_not_called()
+    env.admin.auth.admin.update_user_by_id.assert_called_with("u1", {"password": "newpass12"})
+
+
+def test_reset_password_needs_exactly_one_token(env):
+    assert env.client.post("/api/auth/reset-password", json={"password": "newpass12"}).status_code == 422
+    both = {"token_hash": "a", "access_token": "b", "password": "newpass12"}
+    assert env.client.post("/api/auth/reset-password", json=both).status_code == 422
+
+
+def test_forgot_password_email_limit_message(env):
+    err = Exception("email rate limit exceeded")
+    err.code = "over_email_send_rate_limit"
+    env.anon.auth.reset_password_for_email.side_effect = err
+    r = env.client.post("/api/auth/forgot-password", json={"email": "v@x.com"})
+    assert r.status_code == 429 and "emails" in r.json()["detail"]
 
 
 def test_reset_password_bad_link_or_weak_password(env):

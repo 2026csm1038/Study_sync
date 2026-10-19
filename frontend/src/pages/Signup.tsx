@@ -69,8 +69,11 @@ export default function Signup() {
           <MailCheck size={44} strokeWidth={1.6} aria-hidden="true" />
           <h2 className="auth-title">Check your email</h2>
           <p className="auth-subtitle">
-            We sent a confirmation link to <strong>{confirmationSentTo}</strong>. Open it, then log
-            in.
+            We sent a confirmation link to <strong>{confirmationSentTo}</strong>. Your account is
+            created once you open it, then you can log in.
+          </p>
+          <p className="auth-switch">
+            Didn't get it? <Link to="/confirm-email">Send a new link</Link>
           </p>
           <Link className="auth-submit auth-submit--link" to="/login">
             Go to Login
