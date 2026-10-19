@@ -1,7 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { GuestRoute, ProtectedRoute } from './components/RouteGuards'
 import { AuthProvider } from './context/AuthContext'
-import AdminHome from './pages/AdminHome'
 import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
 import Login from './pages/Login'
@@ -11,6 +10,12 @@ import { StudentLayout } from './components/StudentLayout'
 import StudentProfile from './pages/student/StudentProfile'
 import StudentSearch from './pages/student/StudentSearch'
 import UploadPdf from './pages/student/UploadPdf'
+import { AdminLayout } from './components/AdminLayout'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminProfile from './pages/admin/AdminProfile'
+import AdminUpload from './pages/admin/AdminUpload'
+import ManageCourses from './pages/admin/ManageCourses'
+import ManageRequests from './pages/admin/ManageRequests'
 import './styles.css'
 import './auth.css'
 
@@ -40,9 +45,15 @@ export default function App() {
             </Route>
           </Route>
 
-          {/* admins only: replace AdminHome with the Admin Dashboard */}
+          {/* admins only: every admin page shares the sidebar (AdminLayout) */}
           <Route element={<ProtectedRoute role="admin" />}>
-            <Route path="/admin" element={<AdminHome />} />
+            <Route element={<AdminLayout />}>
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/requests" element={<ManageRequests />} />
+              <Route path="/admin/courses" element={<ManageCourses />} />
+              <Route path="/admin/upload" element={<AdminUpload />} />
+              <Route path="/admin/profile" element={<AdminProfile />} />
+            </Route>
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
