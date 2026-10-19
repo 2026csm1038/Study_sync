@@ -68,7 +68,7 @@ button { cursor: pointer; }
   letter-spacing: -1.1px;
 }
 
-.brand-mark { width: 50px; height: 50px; object-fit: contain; }
+.brand-mark { width: 80px; height: 80px; object-fit: contain; }
 
 .login-button,
 .primary-button {
@@ -241,7 +241,7 @@ button { cursor: pointer; }
 
   .topbar { height: 64px; padding: 0 5%; }
   .brand { font-size: 24px; }
-  .brand-mark { width: 42px; height: 42px; }
+  .brand-mark { width: 80px; height: 80px; }
 
   .hero { flex: none; min-height: auto; }
   .hero-content { grid-template-columns: 1fr; height: auto; min-height: auto; padding: 36px 0 20px; }

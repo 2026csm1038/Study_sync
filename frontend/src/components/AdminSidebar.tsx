@@ -22,7 +22,7 @@ export function AdminSidebar() {
   return (
     <aside className="st-sidebar">
       <NavLink to="/admin" className="st-brand" aria-label="StudySync admin dashboard">
-        <img src="/assets/logo-mark.png" alt="" />
+        <img src="/assets/logo-mark.png" alt=""  />
         <span>StudySync</span>
       </NavLink>
 

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/AuthLayout'
 import { PasswordField, TextField } from '../components/FormFields'
+import { ApiError } from '../lib/api'
 import { homePathFor, useAuth } from '../context/AuthContext'
 
 type LocationState = { from?: string; notice?: string } | null
@@ -17,10 +18,12 @@ export default function Login() {
   const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [needsConfirm, setNeedsConfirm] = useState(false)
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setFormError('')
+    setNeedsConfirm(false)
 
     const nextErrors: typeof errors = {}
     if (!identifier.trim()) nextErrors.identifier = 'Enter your entry number or email.'
@@ -36,6 +39,7 @@ export default function Login() {
       const target = state?.from && state.from.startsWith(home) ? state.from : home
       navigate(target, { replace: true })
     } catch (err) {
+      setNeedsConfirm(err instanceof ApiError && err.status === 403)
       setFormError(err instanceof Error ? err.message : 'Something went wrong.')
     } finally {
       setSubmitting(false)
@@ -50,7 +54,8 @@ export default function Login() {
       {state?.notice && <div className="auth-banner auth-banner--success">{state.notice}</div>}
       {formError && (
         <div className="auth-banner auth-banner--error" role="alert">
-          {formError}
+          {formError}{' '}
+          {needsConfirm && <Link to="/confirm-email">Send a new confirmation link</Link>}
         </div>
       )}
 

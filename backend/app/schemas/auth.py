@@ -1,7 +1,8 @@
 import re
 
-from pydantic import BaseModel, Field, field_validator
-from ..config import settings  
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from ..config import settings
 from .profile import ProfileOut
 
 # Entry numbers look like 2026CSM1038 or 2026AIM1022. Change this if your college differs.
@@ -67,13 +68,31 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token_hash: str = Field(min_length=1, max_length=2048)
+    """The emailed link carries EITHER a `token_hash` (our custom email template, safest)
+    OR an `access_token` (Supabase's default template). Exactly one must be sent."""
+
+    token_hash: str | None = Field(default=None, min_length=1, max_length=2048)
+    access_token: str | None = Field(default=None, min_length=1, max_length=4096)
     password: str = Field(min_length=8, max_length=128)
+
+    @model_validator(mode="after")
+    def _one_token(self):
+        if bool(self.token_hash) == bool(self.access_token):
+            raise ValueError("Send either token_hash or access_token.")
+        return self
 
     @field_validator("password")
     @classmethod
     def _check_password(cls, v: str) -> str:
         return check_password_strength(v)
+
+
+class ConfirmEmailRequest(BaseModel):
+    token_hash: str = Field(min_length=1, max_length=2048)
+
+
+class ResendConfirmationRequest(BaseModel):
+    email: str = Field(max_length=254)
 
 
 # --------------------------------------------------------------- responses ---

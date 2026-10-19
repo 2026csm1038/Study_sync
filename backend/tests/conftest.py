@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app import supabase_client
 from app.main import app
 from app.routers import auth as auth_mod
+from app.schemas import auth as auth_schema
 
 STUDENT = {"id": "u1", "email": "v@x.com", "full_name": "Vanshika", "entry_number": "2026CSM1038", "role": "student"}
 ADMIN = {"id": "u2", "email": "a@x.com", "full_name": "Admin", "entry_number": None, "role": "admin"}
@@ -111,6 +112,8 @@ def env(monkeypatch):
     monkeypatch.setattr(supabase_client, "supabase_admin", admin)
     monkeypatch.setattr(supabase_client, "new_anon_client", lambda: anon)
     monkeypatch.setattr(auth_mod, "settings", settings)
+    # tests use @x.com addresses, so switch the college-domain rule off (test_auth turns it on where needed)
+    monkeypatch.setattr(auth_schema, "settings", NS(allowed_email_domains=[]))
     return NS(admin=admin, anon=anon, db=db, state=state, client=TestClient(app))
 
 

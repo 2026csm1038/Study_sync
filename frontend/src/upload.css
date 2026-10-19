@@ -9,6 +9,7 @@
   min-height: 130px; padding: 20px; background: #f6f9fe; border: 1.5px dashed #c9d3ec; border-radius: 12px;
   color: var(--muted); font-size: 12px; text-align: center; cursor: pointer;
 }
+
 .up-drop strong { font-size: 14px; color: var(--purple); }
 .up-drop:hover, .up-drop-active { background: var(--lavender); border-color: var(--purple); }
 .up-drop:focus-within { outline: 3px solid rgba(92, 78, 229, 0.25); }

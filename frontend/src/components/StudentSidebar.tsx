@@ -21,7 +21,7 @@ export function StudentSidebar() {
   return (
     <aside className="st-sidebar">
       <NavLink to="/" className="st-brand" aria-label="StudySync home">
-        <img src="/assets/logo-mark.png" alt="" />
+        <img src="/assets/logo-mark.png" alt=""/>
         <span>StudySync</span>
       </NavLink>
 

@@ -4,7 +4,9 @@ The React app never talks to Supabase. It calls these endpoints, and this file
 talks to Supabase Auth on its behalf. Request/response shapes live in schemas/auth.py,
 and reads of the profiles table live in repositories/profiles.py.
 
-    POST /api/auth/signup           create an account
+    POST /api/auth/signup           create an account (profile row is made once the email is confirmed)
+    POST /api/auth/confirm-email    confirm the email from the emailed link
+    POST /api/auth/resend-confirmation  send a fresh confirmation link
     POST /api/auth/login            entry number OR email + password
     POST /api/auth/refresh          swap a refresh token for fresh tokens
     POST /api/auth/logout           end the session
@@ -17,14 +19,17 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from .. import deps, supabase_client
 from ..config import settings
+from ..exceptions import AppError
 from ..deps import CurrentUser, get_current_user, require_admin
 from ..repositories import profiles
 from ..schemas.auth import (
     EMAIL_RE,
+    ConfirmEmailRequest,
     ForgotPasswordRequest,
     LoginRequest,
     MessageOut,
     RefreshRequest,
+    ResendConfirmationRequest,
     ResetPasswordRequest,
     SessionOut,
     SignupRequest,
@@ -37,6 +42,39 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # One message for every login failure, so the API never reveals whether an
 # entry number or email is registered.
 INVALID_LOGIN = "Invalid entry number / email or password."
+
+NOT_CONFIRMED = "Please confirm your email first. Check your inbox, or request a new link."
+EMAIL_LIMIT_MESSAGE = (
+    "We can't send any more emails right now. Please try again in about an hour."
+)
+REQUEST_LIMIT_MESSAGE = "Too many attempts. Please wait a minute and try again."
+
+
+def _error_code(exc: Exception) -> str:
+    """Supabase's machine-readable error code, e.g. 'over_email_send_rate_limit'."""
+    return str(getattr(exc, "code", "") or "").lower()
+
+
+def _is_email_limit(exc: Exception) -> bool:
+    """Supabase's built-in mailer only sends a handful of emails per hour for the WHOLE
+    project (every signup, resend and password reset counts). This is the usual cause of a
+    "too many attempts" error while testing with only a few accounts."""
+    return _error_code(exc) == "over_email_send_rate_limit" or "email rate limit" in str(exc).lower()
+
+
+def _is_rate_limited(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return (
+        _error_code(exc) in ("over_email_send_rate_limit", "over_request_rate_limit")
+        or getattr(exc, "status", None) == 429
+        or "rate limit" in message
+        or "too many" in message
+    )
+
+
+def _limit_error(exc: Exception) -> HTTPException:
+    detail = EMAIL_LIMIT_MESSAGE if _is_email_limit(exc) else REQUEST_LIMIT_MESSAGE
+    return HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, detail)
 
 
 def _require_supabase() -> None:
@@ -54,7 +92,7 @@ def _build_session(auth_session) -> SessionOut:
     if row is None:
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
-            "Your account has no profile yet. Please contact an admin.",
+            "Your account is not set up yet. Confirm your email first, or contact an admin.",
         )
     return SessionOut(
         access_token=auth_session.access_token,
@@ -84,21 +122,20 @@ def signup(body: SignupRequest):
                 "email": body.email,
                 "password": body.password,
                 "options": {
-                    # read by the database trigger that creates the profile row
+                    # Stored on the auth user. The database trigger copies it into `profiles`
+                    # ONLY once the email is confirmed.
                     "data": {"full_name": body.full_name, "entry_number": body.entry_number},
-                    "email_redirect_to": f"{settings.frontend_url}/login",
+                    "email_redirect_to": f"{settings.frontend_url}/confirm-email",
                 },
             }
         )
     except Exception as exc:
+        if _is_rate_limited(exc):
+            raise _limit_error(exc)
         message = str(exc).lower()
-        if "already registered" in message or "database error" in message:
+        if "already registered" in message or "already been registered" in message:
             raise HTTPException(
-                status.HTTP_409_CONFLICT, "This entry number or email is already registered."
-            )
-        if "rate limit" in message or "too many" in message:
-            raise HTTPException(
-                status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts. Please wait a minute."
+                status.HTTP_409_CONFLICT, "An account with this email already exists."
             )
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Could not create the account.")
 
@@ -138,7 +175,12 @@ def login(body: LoginRequest):
             {"email": email, "password": body.password}
         )
         auth_session = result.session
-    except Exception:
+    except Exception as exc:
+        # Supabase only reports this AFTER the password was correct, so it leaks nothing.
+        if _error_code(exc) == "email_not_confirmed" or "email not confirmed" in str(exc).lower():
+            raise HTTPException(status.HTTP_403_FORBIDDEN, NOT_CONFIRMED)
+        if _is_rate_limited(exc):
+            raise _limit_error(exc)
         auth_session = None
 
     if auth_session is None:
@@ -188,27 +230,85 @@ def forgot_password(body: ForgotPasswordRequest):
             email, {"redirect_to": f"{settings.frontend_url}/reset-password"}
         )
     except Exception as exc:
-        message = str(exc).lower()
-        if "rate limit" in message or "too many" in message:
-            raise HTTPException(
-                status.HTTP_429_TOO_MANY_REQUESTS, "Too many requests. Please wait a minute."
-            )
+        if _is_rate_limited(exc):
+            raise _limit_error(exc)
+    return generic
+
+
+@router.post("/confirm-email", response_model=MessageOut)
+def confirm_email(body: ConfirmEmailRequest):
+    """Confirm an email using the one-time `token_hash` from the confirmation email.
+
+    Confirming is what makes the database create the student's profile row.
+    The React page calls this only after the student clicks a button, so mail scanners
+    that pre-open links can't use up the one-time token.
+    """
+    _require_supabase()
+    try:
+        result = supabase_client.new_anon_client().auth.verify_otp(
+            {"token_hash": body.token_hash, "type": "signup"}
+        )
+    except Exception as exc:
+        if _is_rate_limited(exc):
+            raise _limit_error(exc)
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "This confirmation link is invalid or has expired. Please request a new one.",
+        )
+    if result.user is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "This confirmation link is invalid or has expired. Please request a new one.",
+        )
+    return MessageOut(message="Email confirmed. You can log in now.")
+
+
+@router.post("/resend-confirmation", response_model=MessageOut)
+def resend_confirmation(body: ResendConfirmationRequest):
+    """Send a new confirmation email. Same answer whether or not the email exists."""
+    _require_supabase()
+    email = body.email.strip().lower()
+    generic = MessageOut(message="If that email is waiting for confirmation, a new link is on its way.")
+
+    if not EMAIL_RE.match(email):
+        return generic
+    try:
+        supabase_client.new_anon_client().auth.resend(
+            {
+                "type": "signup",
+                "email": email,
+                "options": {"email_redirect_to": f"{settings.frontend_url}/confirm-email"},
+            }
+        )
+    except Exception as exc:
+        if _is_rate_limited(exc):
+            raise _limit_error(exc)
     return generic
 
 
 @router.post("/reset-password", response_model=MessageOut)
 def reset_password(body: ResetPasswordRequest):
-    """Set a new password using the one-time `token_hash` from the reset email link."""
+    """Set a new password using the link from the reset email.
+
+    The link carries either a one-time `token_hash` (our custom email template) or an
+    `access_token` (Supabase's default template, which verifies the link before redirecting).
+    """
     _require_supabase()
     expired = HTTPException(
         status.HTTP_400_BAD_REQUEST,
         "This reset link is invalid or has expired. Please request a new one.",
     )
     try:
-        verified = supabase_client.new_anon_client().auth.verify_otp(
-            {"token_hash": body.token_hash, "type": "recovery"}
-        )
-        user = verified.user
+        if body.token_hash:
+            user = (
+                supabase_client.new_anon_client()
+                .auth.verify_otp({"token_hash": body.token_hash, "type": "recovery"})
+                .user
+            )
+        else:
+            user = supabase_client.admin().auth.get_user(body.access_token).user
+    except AppError:
+        raise
     except Exception:
         raise expired
     if user is None:
@@ -219,7 +319,8 @@ def reset_password(body: ResetPasswordRequest):
     except Exception:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Could not update the password. Try a different password.",
+            "Could not update the password. This link may already have been used, "
+            "so please request a new one.",
         )
     return MessageOut(message="Password updated.")
 
