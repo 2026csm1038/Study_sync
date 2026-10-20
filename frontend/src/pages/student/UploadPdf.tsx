@@ -1,7 +1,6 @@
 import { CircleCheck, FileText, X } from 'lucide-react'
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react'
-import { api } from '../../lib/api'
-import { SHOW_SAMPLE_DATA } from '../../lib/demo'
+import { api, ApiError } from '../../lib/api'
 import '../../upload.css'
 
 /* ------------------------------------------------------------------ types -- */
@@ -32,8 +31,10 @@ const sizeLabel = (bytes: number) =>
 /* ------------------------------------------------------------------- page -- */
 
 /**
- * Page 4: Upload PDF (student). UI only.
- * Plan: the PDF goes to private Supabase storage as "pending"; it moves to Google Drive only after an admin approves it.
+ * Page 4: Upload PDF (student).
+ * POST /api/submissions: the backend first checks whether this course + year + exam type (or this exact file)
+ * already exists. If so the upload is rejected with a reason; otherwise the PDF is stored privately in Supabase
+ * Storage as "pending" and moves to Google Drive only after an admin approves it.
  */
 export default function UploadPdf() {
   const fileInput = useRef<HTMLInputElement>(null)
@@ -45,6 +46,7 @@ export default function UploadPdf() {
   const [submitting, setSubmitting] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [notice, setNotice] = useState('')
+  const [rejection, setRejection] = useState('')
 
   // Existing endpoint: any logged-in user can list active courses.
   useEffect(() => {
@@ -99,24 +101,37 @@ export default function UploadPdf() {
     return Object.keys(next).length === 0
   }
 
-  /** TODO (submission endpoint): send `file` + `form` (multipart) to the backend. Resolve true when it succeeds. */
-  async function submitResource(): Promise<boolean> {
-    return SHOW_SAMPLE_DATA
+  /** Sends the PDF + details (multipart). Throws an ApiError carrying the server's reason if it is rejected. */
+  async function submitResource(pdf: File) {
+    const data = new FormData()
+    data.append('file', pdf)
+    data.append('course_id', form.courseId)
+    data.append('exam_year', form.year)
+    data.append('exam_type', form.examType)
+    if (form.tags.trim()) data.append('tags', form.tags.trim())
+    await api('/api/submissions', { method: 'POST', body: data })
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setNotice('')
-    if (!validate()) return
+    setRejection('')
+    if (!validate() || !file) return
     setSubmitting(true)
-    const ok = await submitResource()
-    setSubmitting(false)
-    if (ok) {
+    try {
+      await submitResource(file)
       setShowToast(true)
       setForm(EMPTY_FORM)
       removeFile()
-    } else {
-      setNotice('Submission is not connected to the server yet.')
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // duplicate: keep the form as it is so the student can change the details
+        setRejection(err.message)
+      } else {
+        setNotice(err instanceof Error ? err.message : 'Could not submit the paper. Please try again.')
+      }
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -223,7 +238,13 @@ export default function UploadPdf() {
           </label>
         </div>
 
-        {notice && <p className="up-notice" role="status">{notice}</p>}
+        {rejection && (
+          <div className="up-rejected" role="alert">
+            <strong>Upload rejected</strong>
+            <span>{rejection}</span>
+          </div>
+        )}
+        {notice && <p className="up-notice" role="alert">{notice}</p>}
 
         <div className="up-actions">
           <button type="submit" className="up-submit" disabled={submitting}>

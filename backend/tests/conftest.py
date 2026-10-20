@@ -21,8 +21,8 @@ DEPT_MATH = "22222222-2222-4222-8222-222222222222"
 class FakeQuery:
     """Just enough of  table(...).select/insert/update/delete(...).eq/or_/order/limit(...).execute()."""
 
-    def __init__(self, rows, state):
-        self.rows, self.state = rows, state
+    def __init__(self, rows, state, defaults=None):
+        self.rows, self.state, self.defaults = rows, state, defaults or {}
         self.mode, self.payload, self.filters, self.search, self.order_by = "select", None, [], None, None
 
     def select(self, *_a, **_k):
@@ -48,6 +48,10 @@ class FakeQuery:
         self.search = expression
         return self
 
+    def in_(self, column, values):
+        self.in_filters = getattr(self, "in_filters", []) + [(column, list(values))]
+        return self
+
     def order(self, column, **_k):
         self.order_by = column
         return self
@@ -60,11 +64,12 @@ class FakeQuery:
             error, self.state.fail_next = self.state.fail_next, None
             raise error
         if self.mode == "insert":
-            row = {"id": str(uuid4()), "created_at": None, "updated_at": None, **self.payload}
+            row = {"id": str(uuid4()), "created_at": None, "updated_at": None, **self.defaults, **self.payload}
             self.rows.append(row)
             return NS(data=[row])
 
-        matched = [r for r in self.rows if all(r.get(c) == v for c, v in self.filters)]
+        matched = [r for r in self.rows if all(r.get(c) == v for c, v in self.filters)
+                   and all(r.get(c) in vs for c, vs in getattr(self, "in_filters", []))]
         if self.search:
             term = self.search.split("%")[1].lower()
             matched = [r for r in matched if term in str(r.get("course_code", "")).lower()
@@ -76,7 +81,7 @@ class FakeQuery:
             for r in matched:
                 self.rows.remove(r)
         if self.order_by:
-            matched = sorted(matched, key=lambda r: r[self.order_by])
+            matched = sorted(matched, key=lambda r: str(r[self.order_by]))
         return NS(data=[dict(r) for r in matched])
 
 
@@ -96,6 +101,7 @@ def make_session(user=STUDENT):
 def env(monkeypatch):
     db = {
         "profiles": [dict(STUDENT), dict(ADMIN)],
+        "resource_submissions": [],
         "courses": [
             make_course("CSE201", "Data Structures and Algorithms"),
             make_course("CSE202", "Operating Systems"),
@@ -105,7 +111,8 @@ def env(monkeypatch):
     }
     state = NS(fail_next=None)
     admin, anon = MagicMock(), MagicMock()
-    admin.table.side_effect = lambda name: FakeQuery(db[name], state)
+    defaults = {"resource_submissions": {"status": "pending"}}  # what the database fills in by itself
+    admin.table.side_effect = lambda name: FakeQuery(db[name], state, defaults.get(name))
     anon.auth.sign_in_with_password.return_value = NS(session=make_session())
     settings = NS(supabase_configured=True, supabase_admin_configured=True, frontend_url="http://localhost:5173")
 

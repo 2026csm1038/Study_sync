@@ -24,3 +24,11 @@ class Conflict(AppError):
 
 class ServiceUnavailable(AppError):
     status_code = 503
+
+
+class PayloadTooLarge(AppError):
+    status_code = 413
+
+
+class UnsupportedMediaType(AppError):
+    status_code = 415

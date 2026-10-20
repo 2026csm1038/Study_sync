@@ -7,6 +7,7 @@ from .supabase_client import supabase
 from .routers import auth as auth_router
 from .routers import courses as courses_router
 from .routers import drive as drive_router
+from .routers import submissions as submissions_router
 
 app = FastAPI(
     title="StudySync API",
@@ -30,6 +31,7 @@ def handle_app_error(_request: Request, exc: AppError):
 app.include_router(auth_router.router)
 app.include_router(courses_router.router)
 app.include_router(drive_router.router)
+app.include_router(submissions_router.router)
 
 @app.get("/api/health")
 def health():
