@@ -151,3 +151,35 @@ export async function api<T = unknown>(path: string, options: RequestOptions = {
   }
   return data as T
 }
+
+
+/** Fetch a binary response, such as an authenticated PDF. */
+export async function apiBlob(path: string): Promise<Blob> {
+  const options: RequestOptions = { method: 'GET' }
+
+  let res = await send(path, options, tokenStore.access)
+
+  if (res.status === 401 && tokenStore.refresh) {
+    if (await refreshTokens()) {
+      res = await send(path, options, tokenStore.access)
+    }
+  }
+
+  if (res.status === 401) {
+    tokenStore.clear()
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+  }
+
+  if (!res.ok) {
+    let message = 'Could not open this resource.'
+    try {
+      const body = await res.json()
+      message = messageFromBody(body, message)
+    } catch {
+      // Keep the fallback message.
+    }
+    throw new ApiError(res.status, message)
+  }
+
+  return res.blob()
+}

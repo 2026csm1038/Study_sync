@@ -9,6 +9,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseDownload
 
 DRIVE_SCOPE = ["https://www.googleapis.com/auth/drive"]
 SHARED_DRIVE_ID = os.getenv("GOOGLE_SHARED_DRIVE_ID", "").strip()
@@ -93,3 +94,59 @@ def upload_pdf_to_shared_drive(file: UploadFile) -> dict:
         ) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Could not upload the PDF to Google Drive.") from exc
+
+
+
+def download_pdf_from_shared_drive(file_id: str) -> bytes:
+    """Download a PDF from the configured Shared Drive."""
+    try:
+        drive = _drive_service()
+
+        # Confirm the file exists and is a PDF.
+        metadata = drive.files().get(
+            fileId=file_id,
+            fields="id,mimeType,trashed",
+            supportsAllDrives=True,
+        ).execute()
+
+        if metadata.get("trashed"):
+            raise HTTPException(status_code=404, detail="Resource not found.")
+
+        if metadata.get("mimeType") != "application/pdf":
+            raise HTTPException(
+                status_code=415,
+                detail="The requested resource is not a PDF.",
+            )
+
+        buffer = BytesIO()
+        request = drive.files().get_media(
+            fileId=file_id,
+            supportsAllDrives=True,
+        )
+        downloader = MediaIoBaseDownload(buffer, request)
+
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        return buffer.getvalue()
+
+    except HTTPException:
+        raise
+    except HttpError as exc:
+        if exc.resp.status == 404:
+            raise HTTPException(
+                status_code=404,
+                detail="Resource not found in Google Drive.",
+            ) from exc
+
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve the PDF from Google Drive.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not retrieve the PDF from Google Drive.",
+        ) from exc
+

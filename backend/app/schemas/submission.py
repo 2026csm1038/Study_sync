@@ -10,7 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-ExamType = Literal["Midsem", "Endsem"]
+ExamType = Literal["Midsem", "Endsem", "Lab Test", "Tutorials"]
 SubmissionStatus = Literal["pending", "approved", "rejected"]
 
 FIRST_YEAR = 2000

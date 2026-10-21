@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { api } from '../../lib/api'
+import { api, apiBlob } from '../../lib/api'
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -40,7 +40,7 @@ export type ResourceResult = {
 const CONTENT_TYPES = ['Previous year paper', 'Solution', 'Assignment', 'Quiz']
 const YEARS = ['2026', '2025', '2024', '2023']
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8']
-const EXAM_TYPES = ['Midsem', 'Endsem']
+const EXAM_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
 const DEPARTMENTS = ['CSE', 'Bio-Medical', 'EEE']
 
 const EMPTY_FILTERS: SearchFilters = {
@@ -86,9 +86,12 @@ function FilterSelect(props: {
   )
 }
 
+
 function ResultRow({ item }: { item: ResourceResult }) {
   const style = TYPE_STYLE[item.resource_type] ?? TYPE_STYLE['Previous year paper']
   const Icon = style.icon
+  const [opening, setOpening] = useState(false)
+
   const meta = [
     item.course_code,
     item.semester ? `Semester ${item.semester}` : null,
@@ -98,23 +101,62 @@ function ResultRow({ item }: { item: ResourceResult }) {
     .filter(Boolean)
     .join(' • ')
 
+  async function handleView() {
+    // Open a tab immediately so the browser doesn't block it after the fetch.
+    const tab = window.open('about:blank', '_blank')
+    if (!tab) {
+      alert('Please allow pop-ups for StudySync to view PDFs.')
+      return
+    }
+
+    tab.opener = null
+    setOpening(true)
+
+    let objectUrl: string | undefined
+
+    try {
+      const blob = await apiBlob(
+        `/api/resources/${encodeURIComponent(item.id)}/view`
+      )
+
+      objectUrl = URL.createObjectURL(blob)
+      tab.location.href = objectUrl
+
+      // Keep the blob URL available while the PDF loads.
+      window.setTimeout(() => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
+      }, 60_000)
+    } catch (error) {
+      tab.close()
+      console.error('Could not open resource:', error)
+      alert(error instanceof Error ? error.message : 'Could not open this PDF.')
+    } finally {
+      setOpening(false)
+    }
+  }
+
   return (
     <li className="st-result">
       <div className={`st-result-icon ${style.className}`}>
         <Icon size={22} aria-hidden="true" />
       </div>
+
       <div className="st-result-text">
         <strong>{item.title}</strong>
         <span>{meta}</span>
       </div>
-      <span className={`st-chip ${style.className}`}>{item.resource_type}</span>
+
+      <span className={`st-chip ${style.className}`}>
+        {item.resource_type}
+      </span>
+
       <button
         type="button"
         className="st-view"
-        disabled={!item.google_drive_url}
-        onClick={() => window.open(item.google_drive_url ?? '', '_blank', 'noopener')}
+        disabled={opening}
+        onClick={handleView}
       >
-        View
+        {opening ? 'Opening…' : 'View'}
       </button>
     </li>
   )
@@ -129,6 +171,8 @@ export default function StudentSearch() {
   const [courses, setCourses] = useState<Course[]>([])
   const [results, setResults] = useState<ResourceResult[]>([])
   const [searchedFor, setSearchedFor] = useState<string | null>(null)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
 
   // Existing endpoint: any logged-in user can list active courses.
   useEffect(() => {
@@ -141,13 +185,37 @@ export default function StudentSearch() {
     setFilters((prev) => ({ ...prev, [key]: value }))
   }
 
-  function handleSearch(e: FormEvent) {
-    e.preventDefault()
-    setSearchedFor(query.trim())
-    // TODO (search engine): call the search endpoint with `query` and `filters`,
-    // then call setResults(<response>) with items shaped like ResourceResult.
-    setResults([])
+
+async function handleSearch(e: FormEvent<HTMLFormElement>) {
+  e.preventDefault()
+
+  const searchText = query.trim()
+  setSearchedFor(searchText)
+  setResults([])
+  setSearchError(null)
+
+  if (!searchText) {
+    setIsSearching(false)
+    return
   }
+
+  setIsSearching(true)
+
+  try {
+    const data = await api<ResourceResult[]>(
+      `/api/resources/search?q=${encodeURIComponent(searchText)}`
+    )
+    setResults(data)
+  } catch (error) {
+    console.error('Resource search failed:', error)
+    setSearchError(
+      error instanceof Error ? error.message : 'Search failed. Please try again.'
+    )
+  } finally {
+    setIsSearching(false)
+  }
+}
+
 
   const asOptions = (values: string[], prefix = '') =>
     values.map((v) => ({ value: v, label: prefix + v }))
@@ -221,22 +289,40 @@ export default function StudentSearch() {
       </section>
 
       <section className="st-results" aria-live="polite">
+                
         {searchedFor === null ? (
-          <p className="st-empty">Search for a course, year or topic to see resources here.</p>
+          <p className="st-empty">
+            Search for a course, year or topic to see resources here.
+          </p>
+        ) : isSearching ? (
+          <p className="st-empty" role="status">
+            Searching resources…
+          </p>
+        ) : searchError ? (
+          <p className="st-empty" role="alert">
+            {searchError}
+          </p>
         ) : (
           <>
             <p className="st-count">
-              Showing {results.length} results{searchedFor ? ` for '${searchedFor}'` : ''}
+              Showing {results.length} results
+              {searchedFor ? ` for '${searchedFor}'` : ''}
             </p>
-            {results.length > 0 && (
+
+            {results.length > 0 ? (
               <ul className="st-result-list">
                 {results.map((item) => (
                   <ResultRow key={item.id} item={item} />
                 ))}
               </ul>
+            ) : (
+              <p className="st-empty">
+                No resources found. Try another search term.
+              </p>
             )}
           </>
         )}
+
       </section>
     </div>
   )
