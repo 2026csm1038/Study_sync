@@ -61,21 +61,45 @@ def _label(course: CourseOut, exam_type: str, exam_year: int) -> str:
     return f"{course.course_code} · {exam_type} {exam_year}"
 
 
-def _duplicate_reason(course: CourseOut, data: SubmissionCreate, sha256: str) -> str | None:
-    """The reason to reject this upload, or None if it is not a duplicate."""
-    same_paper = submissions.find_live_by_metadata(str(data.course_id), data.exam_year, data.exam_type)
-    if same_paper:
-        label = _label(course, data.exam_type, data.exam_year)
-        if same_paper.status == "approved":
-            return f"A paper for {label} is already available on StudySync."
-        return f"A paper for {label} has already been submitted and is waiting for admin review."
 
+def _duplicate_reason(
+    course: CourseOut,
+    data: SubmissionCreate,
+    sha256: str,
+) -> str | None:
+    """Return a duplicate rejection reason, or None if upload is allowed."""
+
+    # Tutorials and Lab Tests can have multiple resources per course/year.
+    # Other exam types allow only one live submission per metadata combination.
+    if data.exam_type not in ("Tutorials", "Lab Test"):
+        same_paper = submissions.find_live_by_metadata(
+            str(data.course_id),
+            data.exam_year,
+            data.exam_type,
+        )
+
+        if same_paper:
+            label = _label(course, data.exam_type, data.exam_year)
+
+            if same_paper.status == "approved":
+                return (
+                    f"A paper for {label} is already available on StudySync."
+                )
+
+            return (
+                f"A paper for {label} has already been submitted "
+                "and is waiting for admin review."
+            )
+
+    # Still prevent uploading the exact same PDF multiple times.
     same_file = submissions.find_live_by_hash(sha256)
+
     if same_file:
         return (
-            "This exact PDF has already been submitted for a different course, year or exam type. "
-            "Check the details and try again."
+            "This exact PDF has already been submitted for a different "
+            "course, year or exam type. Check the details and try again."
         )
+
     return None
 
 

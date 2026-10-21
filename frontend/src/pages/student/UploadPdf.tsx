@@ -20,7 +20,7 @@ type FormErrors = Partial<Record<'file' | keyof UploadForm, string>>
 /* ---------------------------------------------------------------- options -- */
 // Static lists, same as the Page 3 filters. Change them here only.
 const YEARS = ['2026', '2025', '2024', '2023']
-const EXAM_TYPES = ['Midsem', 'Endsem']
+const EXAM_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
 const MAX_BYTES = 2 * 1024 * 1024 // wireframe: "PDF only · max size 2MB"
 const EMPTY_FORM: UploadForm = { courseId: '', year: '', examType: '', tags: '' }
 
