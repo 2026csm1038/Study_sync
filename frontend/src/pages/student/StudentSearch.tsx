@@ -14,6 +14,8 @@ import { api, apiBlob } from '../../lib/api'
 
 type Course = { id: string; course_code: string; course_name: string }
 
+type Department = { id: string; name: string; code: string | null }
+
 export type SearchFilters = {
   contentType: string
   courseId: string
@@ -37,11 +39,10 @@ export type ResourceResult = {
 
 /* -------------------------------------------------------- filter options -- */
 // Static lists taken from the wireframe. Change them here only.
-const CONTENT_TYPES = ['Previous year paper', 'Solution', 'Assignment', 'Quiz']
+const CONTENT_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
 const YEARS = ['2026', '2025', '2024', '2023']
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8']
 const EXAM_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
-const DEPARTMENTS = ['CSE', 'Bio-Medical', 'EEE']
 
 const EMPTY_FILTERS: SearchFilters = {
   contentType: '',
@@ -53,10 +54,10 @@ const EMPTY_FILTERS: SearchFilters = {
 }
 
 const TYPE_STYLE: Record<string, { icon: LucideIcon; className: string }> = {
-  'Previous year paper': { icon: FileText, className: 'st-tag-paper' },
-  Solution: { icon: FileCheck, className: 'st-tag-solution' },
-  Assignment: { icon: ClipboardList, className: 'st-tag-assignment' },
-  Quiz: { icon: CircleHelp, className: 'st-tag-quiz' },
+  Midsem: { icon: FileText, className: 'st-tag-paper' },
+  Endsem: { icon: FileCheck, className: 'st-tag-solution' },
+  'Lab Test': { icon: ClipboardList, className: 'st-tag-assignment' },
+  Tutorials: { icon: CircleHelp, className: 'st-tag-quiz' },
 }
 
 /* ------------------------------------------------------------- components -- */
@@ -88,7 +89,7 @@ function FilterSelect(props: {
 
 
 function ResultRow({ item }: { item: ResourceResult }) {
-  const style = TYPE_STYLE[item.resource_type] ?? TYPE_STYLE['Previous year paper']
+  const style = TYPE_STYLE[item.resource_type] ?? TYPE_STYLE.Midsem
   const Icon = style.icon
   const [opening, setOpening] = useState(false)
 
@@ -169,6 +170,7 @@ export default function StudentSearch() {
   const [query, setQuery] = useState('')
   const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS)
   const [courses, setCourses] = useState<Course[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [results, setResults] = useState<ResourceResult[]>([])
   const [searchedFor, setSearchedFor] = useState<string | null>(null)
   const [isSearching, setIsSearching] = useState(false)
@@ -179,6 +181,11 @@ export default function StudentSearch() {
     api<Course[]>('/api/courses')
       .then(setCourses)
       .catch(() => setCourses([]))
+
+    // Existing endpoint: any logged-in user can list departments.
+    api<Department[]>('/api/departments')
+      .then(setDepartments)
+      .catch(() => setDepartments([]))
   }, [])
 
   function setFilter(key: keyof SearchFilters, value: string) {
@@ -190,21 +197,30 @@ async function handleSearch(e: FormEvent<HTMLFormElement>) {
   e.preventDefault()
 
   const searchText = query.trim()
+  const hasFilter = Object.values(filters).some(Boolean)
   setSearchedFor(searchText)
   setResults([])
   setSearchError(null)
 
-  if (!searchText) {
+  if (!searchText && !hasFilter) {
     setIsSearching(false)
     return
   }
 
   setIsSearching(true)
 
+  // Only the boxes that are filled in are sent; the backend combines them with AND.
+  const params = new URLSearchParams()
+  if (searchText) params.set('q', searchText)
+  if (filters.contentType) params.set('content_type', filters.contentType)
+  if (filters.courseId) params.set('course_id', filters.courseId)
+  if (filters.year) params.set('exam_year', filters.year)
+  if (filters.semester) params.set('semester', filters.semester)
+  if (filters.examType) params.set('exam_type', filters.examType)
+  if (filters.department) params.set('department_id', filters.department)
+
   try {
-    const data = await api<ResourceResult[]>(
-      `/api/resources/search?q=${encodeURIComponent(searchText)}`
-    )
+    const data = await api<ResourceResult[]>(`/api/resources?${params.toString()}`)
     setResults(data)
   } catch (error) {
     console.error('Resource search failed:', error)
@@ -283,7 +299,7 @@ async function handleSearch(e: FormEvent<HTMLFormElement>) {
           label="Department"
           allLabel="All Departments"
           value={filters.department}
-          options={asOptions(DEPARTMENTS)}
+          options={departments.map((d) => ({ value: d.id, label: d.code ?? d.name }))}
           onChange={(v) => setFilter('department', v)}
         />
       </section>
