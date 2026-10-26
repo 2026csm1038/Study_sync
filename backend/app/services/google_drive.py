@@ -72,6 +72,12 @@ def upload_pdf_to_shared_drive(file: UploadFile) -> dict:
     if not filename.lower().endswith(".pdf"):
         filename += ".pdf"
 
+    return upload_pdf_bytes_to_shared_drive(content, filename)
+
+
+def upload_pdf_bytes_to_shared_drive(content: bytes, filename: str) -> dict:
+    """Upload PDF bytes to the root of the configured Shared Drive.
+    Used by the upload test endpoint above and by the admin approval flow."""
     media = MediaIoBaseUpload(BytesIO(content), mimetype="application/pdf", resumable=True)
     metadata = {"name": filename, "mimeType": "application/pdf", "parents": [SHARED_DRIVE_ID]}
     try:
@@ -95,6 +101,13 @@ def upload_pdf_to_shared_drive(file: UploadFile) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Could not upload the PDF to Google Drive.") from exc
 
+
+def delete_file_from_shared_drive(file_id: str) -> None:
+    """Best effort: remove a file we just uploaded when the step after it failed. Never raises."""
+    try:
+        _drive_service().files().delete(fileId=file_id, supportsAllDrives=True).execute()
+    except Exception:
+        pass
 
 
 def download_pdf_from_shared_drive(file_id: str) -> bytes:

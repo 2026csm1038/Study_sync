@@ -6,7 +6,7 @@ reached through this backend (service role key), never by a public URL.
 import logging
 
 from .. import supabase_client
-from ..exceptions import ServiceUnavailable
+from ..exceptions import NotFound, ServiceUnavailable
 
 log = logging.getLogger("studysync.storage")
 
@@ -34,3 +34,16 @@ def delete_file(path: str) -> None:
         _bucket().remove([path])
     except Exception:
         log.exception("Could not remove %s from the '%s' bucket", path, BUCKET)
+
+
+def download_pdf(path: str) -> bytes:
+    """The temporary PDF, for the admin preview and for copying it to Google Drive."""
+    try:
+        return _bucket().download(path)
+    except ServiceUnavailable:
+        raise
+    except Exception as exc:
+        log.exception("Could not download %s from the '%s' bucket", path, BUCKET)
+        if "not found" in str(exc).lower() or "404" in str(exc):
+            raise NotFound("The uploaded file could not be found in temporary storage.")
+        raise ServiceUnavailable("File storage is not available right now. Please try again later.")

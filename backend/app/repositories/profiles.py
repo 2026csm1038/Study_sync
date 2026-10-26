@@ -20,3 +20,11 @@ def get_by_entry_number(entry_number: str) -> ProfileRow | None:
 
 def entry_number_exists(entry_number: str) -> bool:
     return get_by_entry_number(entry_number) is not None
+
+
+def get_many(user_ids: list[str]) -> dict[str, ProfileRow]:
+    """Several profiles at once, keyed by id. Used to show who uploaded what."""
+    if not user_ids:
+        return {}
+    rows = admin().table("profiles").select(COLUMNS).in_("id", list(set(user_ids))).execute().data
+    return {str(r["id"]): ProfileRow.model_validate(r) for r in rows}
