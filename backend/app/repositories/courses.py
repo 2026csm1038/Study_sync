@@ -95,3 +95,11 @@ def delete_course(course_id: UUID) -> None:
         raise _translate(exc, action="delete")
     if not rows:
         raise NotFound("Course not found.")
+
+
+def get_many(course_ids: list[str]) -> dict[str, CourseOut]:
+    """Several courses at once, keyed by id (inactive ones included)."""
+    if not course_ids:
+        return {}
+    rows = _table().select("*").in_("id", list(set(course_ids))).execute().data
+    return {str(r["id"]): CourseOut.model_validate(r) for r in rows}
