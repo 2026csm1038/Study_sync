@@ -43,7 +43,7 @@ class SubmissionRow(BaseModel):
     exam_type: ExamType
     tags: str | None = None
     original_filename: str
-    storage_path: str
+    storage_path: str | None = None
     file_size_bytes: int
     file_sha256: str
     uploaded_by: str

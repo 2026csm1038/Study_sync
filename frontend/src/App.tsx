@@ -17,6 +17,7 @@ import AdminProfile from './pages/admin/AdminProfile'
 import AdminUpload from './pages/admin/AdminUpload'
 import ManageCourses from './pages/admin/ManageCourses'
 import ManageRequests from './pages/admin/ManageRequests'
+import AdminRequestPreview from './pages/admin/AdminRequestPreview'
 import './styles.css'
 import './auth.css'
 
@@ -53,6 +54,7 @@ export default function App() {
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/requests" element={<ManageRequests />} />
+              <Route path="/admin/requests/:id" element={<AdminRequestPreview />} />
               <Route path="/admin/courses" element={<ManageCourses />} />
               <Route path="/admin/upload" element={<AdminUpload />} />
               <Route path="/admin/profile" element={<AdminProfile />} />

@@ -98,6 +98,18 @@ def list_by_status(status: SubmissionStatus, limit: int = 100) -> list[Submissio
     return [SubmissionRow.model_validate(row) for row in rows]
 
 
+def clear_storage_path(submission_id: str) -> bool:
+    """Clear the temporary Storage path after its file has been deleted."""
+    rows = (
+        _table()
+        .update({"storage_path": None})
+        .eq("id", str(submission_id))
+        .execute()
+        .data
+    )
+    return bool(rows)
+
+
 def decide(
     submission_id: str,
     *,
