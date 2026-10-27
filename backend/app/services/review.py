@@ -15,6 +15,9 @@ from ..repositories import courses, profiles, submissions
 from ..schemas.review import ReviewItem
 from ..schemas.submission import SubmissionRow, SubmissionStatus
 from . import google_drive, storage
+import logging
+
+log = logging.getLogger(__name__)
 
 
 def _items(rows: list[SubmissionRow]) -> list[ReviewItem]:
@@ -52,6 +55,36 @@ def _get_pending(submission_id: str) -> SubmissionRow:
     return row
 
 
+def _cleanup_temporary_file(submission_id: str, storage_path: str) -> None:
+    """Delete the temporary PDF, then clear its path from the database."""
+    deleted = storage.delete_file(storage_path)
+
+    if not deleted:
+        log.error(
+            "Temporary file cleanup failed for submission %s; "
+            "storage_path retained: %s",
+            submission_id,
+            storage_path,
+        )
+        return
+
+    try:
+        cleared = submissions.clear_storage_path(submission_id)
+
+        if not cleared:
+            log.error(
+                "File was deleted from Storage, but storage_path could not "
+                "be cleared for submission %s",
+                submission_id,
+            )
+    except Exception:
+        log.exception(
+            "File was deleted from Storage, but database path cleanup failed "
+            "for submission %s",
+            submission_id,
+        )
+
+
 def list_requests(status: SubmissionStatus, limit: int) -> list[ReviewItem]:
     return _items(submissions.list_by_status(status, limit))
 
@@ -85,7 +118,8 @@ def approve(admin: CurrentUser, submission_id: str) -> ReviewItem:
         raise Conflict("Another admin has already reviewed this request.")
 
     # 3. the temporary copy is no longer needed
-    storage.delete_file(row.storage_path)
+    # 3. Remove the temporary file and clear its database path.
+    _cleanup_temporary_file(submission_id, row.storage_path)
     return _items([updated])[0]
 
 
@@ -96,5 +130,5 @@ def reject(admin: CurrentUser, submission_id: str, reason: str) -> ReviewItem:
     )
     if updated is None:
         raise Conflict("Another admin has already reviewed this request.")
-    storage.delete_file(row.storage_path)
+    _cleanup_temporary_file(submission_id, row.storage_path)
     return _items([updated])[0]

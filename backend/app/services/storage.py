@@ -28,12 +28,38 @@ def upload_pdf(path: str, content: bytes) -> None:
         raise ServiceUnavailable("File storage is not available right now. Please try again later.")
 
 
-def delete_file(path: str) -> None:
-    """Best effort. Used to undo an upload when saving its row fails, so it never raises."""
+
+def delete_file(path: str) -> bool:
+    """Delete a temporary PDF from Supabase Storage.
+
+    Returns True when the Storage API accepts the deletion.
+    Returns False and logs the error if deletion fails.
+    """
+    if not path or not path.strip():
+        log.error("Cannot delete Supabase Storage file: empty path")
+        return False
+
     try:
-        _bucket().remove([path])
+        result = _bucket().remove([path])
+
+        # Supabase Storage raises an exception on API errors.
+        # Do not clear the database path if the request fails.
+        log.info(
+            "Supabase Storage deletion accepted for bucket=%s path=%s result=%r",
+            BUCKET,
+            path,
+            result,
+        )
+        return True
+
     except Exception:
-        log.exception("Could not remove %s from the '%s' bucket", path, BUCKET)
+        log.exception(
+            "Failed to delete Supabase Storage file: bucket=%s path=%s",
+            BUCKET,
+            path,
+        )
+        return False
+
 
 
 def download_pdf(path: str) -> bytes:
