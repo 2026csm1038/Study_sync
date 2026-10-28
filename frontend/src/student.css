@@ -85,6 +85,13 @@
 }
 .st-view:hover:not(:disabled) { background: var(--lavender); }
 .st-view:disabled { opacity: 0.45; cursor: not-allowed; }
+.st-busy { opacity: 0.55; transition: opacity 0.15s; }
+.st-more {
+  display: block; margin: 18px auto 0; height: 42px; padding: 0 30px; border: 1px solid var(--purple);
+  border-radius: 10px; background: #fff; color: var(--purple); font-weight: 600;
+}
+.st-more:hover:not(:disabled) { background: var(--lavender); }
+.st-more:disabled { opacity: 0.6; cursor: wait; }
 .st-tag-paper { background: #ece9ff; color: #5c4ee5; }
 .st-tag-solution { background: #dff5ee; color: #2a8a6b; }
 .st-tag-assignment { background: #fdeadf; color: #d9722e; }

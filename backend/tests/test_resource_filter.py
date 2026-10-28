@@ -8,18 +8,32 @@ from .conftest import DEPT_CSE, DEPT_MATH, STUDENT, FakeQuery, as_user
 
 
 class ResourceFakeQuery(FakeQuery):
-    """The shared fake only understands course search in or_(); this one also matches file name and tags."""
+    """The shared fake only understands course search in or_(); this one also matches file name and tags,
+    and pages with limit(...) / range(...)."""
+
+    window = None
+
+    def limit(self, n):
+        self.window = (0, n - 1)
+        return self
+
+    def range(self, start, end):
+        self.window = (start, end)
+        return self
 
     def execute(self):
         search, self.search = self.search, None
         result = super().execute()
+        rows = result.data
         if search:
             term = search.split("%")[1].lower()
-            result = NS(data=[
-                r for r in result.data
+            rows = [
+                r for r in rows
                 if term in str(r.get("original_filename") or "").lower() or term in str(r.get("tags") or "").lower()
-            ])
-        return result
+            ]
+        if self.window:
+            rows = rows[self.window[0]: self.window[1] + 1]
+        return NS(data=rows)
 
 
 def make_resource(course, year, exam, name, *, tags=None, drive="drive-1", status="approved", n=0):
@@ -155,11 +169,33 @@ def test_blank_q_means_no_text_filter_but_symbols_only_matches_nothing(renv):
     assert get(renv, q="%%%").json() == []
 
 
+# ---------------------------------------------------------------- paging ---
+
+def test_pages_do_not_overlap_and_together_cover_everything(renv):
+    first = get(renv, limit=3).json()
+    second = get(renv, limit=3, offset=3).json()
+    assert len(first) == 3 and len(second) == 1            # 4 visible papers in total
+    assert {r["id"] for r in first}.isdisjoint({r["id"] for r in second})
+    assert {r["title"] for r in first + second} == {
+        "DSA_Midsem_2025.pdf", "DSA_Endsem_2024.pdf", "OS_Midsem_2025.pdf", "LinAlg_Tutorial_1.pdf",
+    }
+
+
+def test_an_offset_past_the_end_gives_an_empty_page(renv):
+    assert get(renv, offset=50).json() == []
+
+
+def test_paging_works_together_with_filters(renv):
+    assert len(get(renv, exam_type="Midsem", limit=1).json()) == 1
+    assert len(get(renv, exam_type="Midsem", limit=1, offset=1).json()) == 1
+    assert get(renv, exam_type="Midsem", limit=1, offset=2).json() == []
+
+
 # ------------------------------------------------------------ validation ---
 
 @pytest.mark.parametrize("params", [
     {"exam_type": "Quiz"}, {"content_type": "Solution"}, {"semester": 0}, {"semester": 13},
-    {"limit": 0}, {"limit": 101}, {"course_id": "not-a-uuid"}, {"department_id": "nope"},
+    {"limit": 0}, {"limit": 101}, {"offset": -1}, {"course_id": "not-a-uuid"}, {"department_id": "nope"},
 ])
 def test_bad_parameters_are_rejected(renv, params):
     assert get(renv, **params).status_code == 422
