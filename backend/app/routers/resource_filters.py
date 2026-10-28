@@ -3,6 +3,7 @@
     GET /api/resources    approved papers, narrowed by any combination of filters
 
 Every filter is optional and the filters are combined with AND. With none, the newest papers come back.
+Results are paged: `limit` papers per call (default 50) and `offset` papers skipped, newest first.
 The router only checks the parameters and who is asking; the query lives in repositories/resources.py.
 
 (Text search by file name or tag alone is still GET /api/resources/search in routers/resources.py.)
@@ -31,6 +32,7 @@ def filter_resources(
         default=None, description="Page 3 'Content Type' dropdown. Same values as exam_type."
     ),
     limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=100_000, description="How many papers to skip (for 'Load more')"),
     _user: CurrentUser = Depends(get_current_user),
 ):
     # Content Type and Exam Type both narrow the same column. Two different values can never match one paper.
@@ -46,4 +48,5 @@ def filter_resources(
         exam_year=exam_year,
         exam_type=wanted.pop() if wanted else None,
         limit=limit,
+        offset=offset,
     )

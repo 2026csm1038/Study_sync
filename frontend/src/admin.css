@@ -1,11 +1,14 @@
 ﻿/* Admin pages (Page 5 onward). Every class starts with ad- . The sidebar and page shell reuse the st- classes from student.css. */
 
 /* ---------- stat cards ---------- */
-.ad-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px; }
+.ad-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; margin-bottom: 28px; }
 .ad-stat { display: flex; align-items: center; gap: 12px; padding: 16px; background: #fff; border: 1px solid var(--border); border-radius: 14px; }
 .ad-stat-icon { width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; border-radius: 12px; background: var(--lavender); color: var(--purple); }
 .ad-stat strong { display: block; font-size: 24px; line-height: 1.1; color: var(--dark); }
 .ad-stat span { font-size: 12px; color: var(--muted); }
+
+/* ---------- load error ---------- */
+.ad-error { margin: 0 0 18px; padding: 10px 14px; background: #fdecec; border-radius: 10px; color: #b83232; font-size: 14px; }
 
 /* ---------- quick actions ---------- */
 .ad-section-title { margin: 0 0 12px; font-size: 16px; font-weight: 700; color: var(--dark); }
@@ -29,7 +32,11 @@
 .ad-activity li { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid #eef0f7; }
 .ad-activity li:last-child { border-bottom: 0; }
 .ad-activity-icon { width: 36px; height: 36px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; background: var(--lavender); color: var(--purple); }
-.ad-activity strong { flex: 1; min-width: 0; font-size: 14px; color: var(--dark); }
+.ad-activity-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ad-activity-text strong { font-size: 14px; color: var(--dark); }
+.ad-activity-text small { font-size: 12px; color: var(--muted); }
+.ad-act-approved { background: #eaf7ef; color: #2a8a53; }
+.ad-act-rejected { background: #fdecec; color: #d64545; }
 .ad-activity span { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .ad-more { display: block; margin: 10px auto 0; border: 0; background: transparent; color: var(--dark); font-size: 13px; font-weight: 700; }
 .ad-more:hover { color: var(--purple); }
@@ -43,6 +50,6 @@
 .ad-legend span { flex: 1; }
 .ad-legend em { width: 40px; font-style: normal; font-size: 12px; color: var(--muted); text-align: right; }
 
-@media (max-width: 1100px) { .ad-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 1250px) { .ad-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) { .ad-panels { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .ad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ad-overview { flex-direction: column; align-items: flex-start; } }

@@ -64,8 +64,12 @@ def filter_resources(
     exam_year: int | None = None,
     exam_type: str | None = None,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[ResourceOut]:
-    """Approved papers matching every filter that is given (filters are combined with AND)."""
+    """One page of approved papers, newest first, matching every filter that is given (combined with AND).
+
+    Page 1 is offset=0. For the next page, ask again with offset = how many papers the student already has.
+    """
     query = admin().table(TABLE).select(COLUMNS).eq("status", "approved")
 
     # course-level filters are answered by the courses table, then applied as "course is one of these"
@@ -88,7 +92,10 @@ def filter_resources(
             return []
         query = query.or_(f"original_filename.ilike.%{term}%,tags.ilike.%{term}%")
 
-    rows = query.order("created_at", desc=True).limit(limit).execute().data
+    query = query.order("created_at", desc=True)
+    # range() is only needed from the second page on; the first page is a plain limit
+    query = query.range(offset, offset + limit - 1) if offset else query.limit(limit)
+    rows = query.execute().data
     rows = [row for row in rows if (row.get("drive_file_id") or "").strip()]
 
     # Course names/semesters for the rows we are returning (no PostgREST relationship needed).

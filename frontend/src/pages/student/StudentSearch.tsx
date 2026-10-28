@@ -7,7 +7,7 @@ import {
   Search,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, apiBlob } from '../../lib/api'
 
 /* ------------------------------------------------------------------ types -- */
@@ -43,6 +43,8 @@ const CONTENT_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
 const YEARS = ['2026', '2025', '2024', '2023']
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8']
 const EXAM_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
+
+const PAGE_SIZE = 50 // papers per request; "Load more" fetches the next 50
 
 const EMPTY_FILTERS: SearchFilters = {
   contentType: '',
@@ -165,16 +167,23 @@ function ResultRow({ item }: { item: ResourceResult }) {
 
 /* ------------------------------------------------------------------- page -- */
 
-/** Page 3: Student Search. UI only; the search engine is plugged in at handleSearch(). */
+/**
+ * Page 3: Student Search.
+ * Opens with the newest papers already listed. The list refreshes as soon as a dropdown changes
+ * or Search is pressed, and "Load more" adds the next 50.
+ */
 export default function StudentSearch() {
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState('') // what is typed in the box
+  const [appliedQuery, setAppliedQuery] = useState('') // the text the list is currently filtered by
   const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS)
   const [courses, setCourses] = useState<Course[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [results, setResults] = useState<ResourceResult[]>([])
-  const [searchedFor, setSearchedFor] = useState<string | null>(null)
-  const [isSearching, setIsSearching] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [isSearching, setIsSearching] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const latestRequest = useRef(0)
 
   // Existing endpoint: any logged-in user can list active courses.
   useEffect(() => {
@@ -192,49 +201,69 @@ export default function StudentSearch() {
     setFilters((prev) => ({ ...prev, [key]: value }))
   }
 
+  /** Fetch one page. offset 0 replaces the list; a later offset adds to it. */
+  async function loadPage(offset: number, text: string, current: SearchFilters) {
+    const requestId = ++latestRequest.current
+    if (offset === 0) {
+      setIsSearching(true)
+      setSearchError(null)
+    } else {
+      setIsLoadingMore(true)
+    }
 
-async function handleSearch(e: FormEvent<HTMLFormElement>) {
-  e.preventDefault()
+    // Only the boxes that are filled in are sent; the backend combines them with AND.
+    const params = new URLSearchParams()
+    if (text) params.set('q', text)
+    if (current.contentType) params.set('content_type', current.contentType)
+    if (current.courseId) params.set('course_id', current.courseId)
+    if (current.year) params.set('exam_year', current.year)
+    if (current.semester) params.set('semester', current.semester)
+    if (current.examType) params.set('exam_type', current.examType)
+    if (current.department) params.set('department_id', current.department)
+    params.set('limit', String(PAGE_SIZE))
+    if (offset) params.set('offset', String(offset))
 
-  const searchText = query.trim()
-  const hasFilter = Object.values(filters).some(Boolean)
-  setSearchedFor(searchText)
-  setResults([])
-  setSearchError(null)
-
-  if (!searchText && !hasFilter) {
-    setIsSearching(false)
-    return
+    try {
+      const data = await api<ResourceResult[]>(`/api/resources?${params.toString()}`)
+      if (requestId !== latestRequest.current) return // a newer search started; drop this answer
+      setResults((prev) => {
+        if (offset === 0) return data
+        const seen = new Set(prev.map((item) => item.id)) // new uploads can shift the pages
+        return [...prev, ...data.filter((item) => !seen.has(item.id))]
+      })
+      setHasMore(data.length === PAGE_SIZE)
+    } catch (error) {
+      if (requestId !== latestRequest.current) return
+      console.error('Resource search failed:', error)
+      if (offset === 0) {
+        setResults([])
+        setHasMore(false)
+      }
+      setSearchError(error instanceof Error ? error.message : 'Search failed. Please try again.')
+    } finally {
+      if (requestId === latestRequest.current) {
+        setIsSearching(false)
+        setIsLoadingMore(false)
+      }
+    }
   }
 
-  setIsSearching(true)
+  // On open, and whenever a dropdown or the applied search text changes: show the first page.
+  useEffect(() => {
+    void loadPage(0, appliedQuery, filters)
+  }, [filters, appliedQuery]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Only the boxes that are filled in are sent; the backend combines them with AND.
-  const params = new URLSearchParams()
-  if (searchText) params.set('q', searchText)
-  if (filters.contentType) params.set('content_type', filters.contentType)
-  if (filters.courseId) params.set('course_id', filters.courseId)
-  if (filters.year) params.set('exam_year', filters.year)
-  if (filters.semester) params.set('semester', filters.semester)
-  if (filters.examType) params.set('exam_type', filters.examType)
-  if (filters.department) params.set('department_id', filters.department)
-
-  try {
-    const data = await api<ResourceResult[]>(`/api/resources?${params.toString()}`)
-    setResults(data)
-  } catch (error) {
-    console.error('Resource search failed:', error)
-    setSearchError(
-      error instanceof Error ? error.message : 'Search failed. Please try again.'
-    )
-  } finally {
-    setIsSearching(false)
+  function handleSearch(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const text = query.trim()
+    if (text === appliedQuery) void loadPage(0, text, filters) // same text: search again
+    else setAppliedQuery(text) // new text: the effect above reloads the list
   }
-}
-
 
   const asOptions = (values: string[], prefix = '') =>
     values.map((v) => ({ value: v, label: prefix + v }))
+
+  const isFiltering = Boolean(appliedQuery) || Object.values(filters).some(Boolean)
 
   return (
     <div className="st-page">
@@ -304,41 +333,44 @@ async function handleSearch(e: FormEvent<HTMLFormElement>) {
         />
       </section>
 
-      <section className="st-results" aria-live="polite">
-                
-        {searchedFor === null ? (
-          <p className="st-empty">
-            Search for a course, year or topic to see resources here.
-          </p>
-        ) : isSearching ? (
-          <p className="st-empty" role="status">
-            Searching resources…
-          </p>
-        ) : searchError ? (
+      <section className="st-results" aria-live="polite" aria-busy={isSearching}>
+        {searchError ? (
           <p className="st-empty" role="alert">
             {searchError}
+          </p>
+        ) : isSearching && results.length === 0 ? (
+          <p className="st-empty" role="status">
+            Loading resources…
+          </p>
+        ) : results.length === 0 ? (
+          <p className="st-empty">
+            {isFiltering
+              ? 'No resources found. Try another search term or different filters.'
+              : 'No resources have been published yet.'}
           </p>
         ) : (
           <>
             <p className="st-count">
               Showing {results.length} results
-              {searchedFor ? ` for '${searchedFor}'` : ''}
+              {appliedQuery ? ` for '${appliedQuery}'` : ''}
             </p>
-
-            {results.length > 0 ? (
-              <ul className="st-result-list">
-                {results.map((item) => (
-                  <ResultRow key={item.id} item={item} />
-                ))}
-              </ul>
-            ) : (
-              <p className="st-empty">
-                No resources found. Try another search term.
-              </p>
+            <ul className={`st-result-list${isSearching ? ' st-busy' : ''}`}>
+              {results.map((item) => (
+                <ResultRow key={item.id} item={item} />
+              ))}
+            </ul>
+            {hasMore && (
+              <button
+                type="button"
+                className="st-more"
+                disabled={isLoadingMore}
+                onClick={() => void loadPage(results.length, appliedQuery, filters)}
+              >
+                {isLoadingMore ? 'Loading…' : 'Load more'}
+              </button>
             )}
           </>
         )}
-
       </section>
     </div>
   )
