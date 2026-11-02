@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app import supabase_client
 from app.main import app
 from app.routers import auth as auth_mod
+from app.services import google_drive
 from app.schemas import auth as auth_schema
 
 STUDENT = {"id": "u1", "email": "v@x.com", "full_name": "Vanshika", "entry_number": "2026CSM1038", "role": "student"}
@@ -119,9 +120,13 @@ def env(monkeypatch):
     monkeypatch.setattr(supabase_client, "supabase_admin", admin)
     monkeypatch.setattr(supabase_client, "new_anon_client", lambda: anon)
     monkeypatch.setattr(auth_mod, "settings", settings)
+    drive_upload = MagicMock(return_value={"file_id": "DRIVE-1", "name": "paper.pdf"})
+    drive_delete = MagicMock()
+    monkeypatch.setattr(google_drive, "upload_pdf_bytes_to_shared_drive", drive_upload)
+    monkeypatch.setattr(google_drive, "delete_file_from_shared_drive", drive_delete)
     # tests use @x.com addresses, so switch the college-domain rule off (test_auth turns it on where needed)
     monkeypatch.setattr(auth_schema, "settings", NS(allowed_email_domains=[]))
-    return NS(admin=admin, anon=anon, db=db, state=state, client=TestClient(app))
+    return NS(admin=admin, anon=anon, db=db, state=state, drive_upload=drive_upload, drive_delete=drive_delete, client=TestClient(app))
 
 
 def as_user(env, user):

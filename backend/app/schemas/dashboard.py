@@ -8,14 +8,14 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-ActivityKind = Literal["uploaded", "approved", "rejected", "course_added"]
+ActivityKind = Literal["uploaded", "course_added"]
 
 
 class ActivityOut(BaseModel):
     id: str
     kind: ActivityKind
     text: str
-    actor: str | None = None  # who did it: the student who uploaded, or the admin who decided
+    actor: str | None = None  # who uploaded the resource
     at: datetime
 
 
