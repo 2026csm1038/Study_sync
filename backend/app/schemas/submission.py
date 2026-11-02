@@ -1,9 +1,4 @@
-"""Pydantic models for student PDF submissions (the Upload PDF page).
-
-    SubmissionCreate  the form fields the student fills in (sent together with the PDF)
-    SubmissionRow     a row of `resource_submissions`, exactly as stored. Internal only.
-    SubmissionOut     what the API sends back. Leaves out the storage path and file hash.
-"""
+"""Pydantic models for published resource uploads."""
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import UUID
@@ -12,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator
 
 ExamType = Literal["Midsem", "Endsem", "Lab Test", "Tutorials"]
 SubmissionStatus = Literal["pending", "approved", "rejected"]
-
 FIRST_YEAR = 2000
 
 
@@ -56,17 +50,18 @@ class SubmissionRow(BaseModel):
 
 
 class SubmissionInsert(BaseModel):
-    """Everything written when a new submission is saved (status starts as 'pending')."""
-
+    """Metadata written after the PDF has been uploaded directly to Google Drive."""
     course_id: UUID
     exam_year: int
     exam_type: ExamType
     tags: str | None
     original_filename: str
-    storage_path: str
+    storage_path: str | None = None
     file_size_bytes: int
     file_sha256: str
     uploaded_by: str
+    status: SubmissionStatus = "approved"
+    drive_file_id: str
 
 
 class SubmissionOut(BaseModel):

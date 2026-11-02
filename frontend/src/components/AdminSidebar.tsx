@@ -1,10 +1,9 @@
-import { CircleUser, FileText, FileUp, GraduationCap, House, LogOut } from 'lucide-react'
+import { CircleUser, FileUp, GraduationCap, House, LogOut } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: House },
-  { to: '/admin/requests', label: 'Manage Request', icon: FileText },
   { to: '/admin/courses', label: 'Manage Courses', icon: GraduationCap },
   { to: '/admin/upload', label: 'Upload PDF', icon: FileUp },
 ]

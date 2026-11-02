@@ -33,6 +33,7 @@ def latest_submissions(limit: int) -> list[SubmissionRow]:
     """Newest uploads, whatever their status."""
     rows = (
         admin().table("resource_submissions").select("*")
+        .eq("status", "approved")
         .order("created_at", desc=True).limit(limit).execute().data
     )
     return [SubmissionRow.model_validate(row) for row in rows]

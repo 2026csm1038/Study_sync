@@ -1,7 +1,5 @@
 import {
-  CircleCheck,
   CircleHelp,
-  CircleX,
   ClipboardList,
   CloudUpload,
   FileCheck,
@@ -17,7 +15,7 @@ import { SHOW_SAMPLE_DATA } from '../../lib/demo'
 
 /* ------------------------------------------------------------------ types -- */
 
-type ActivityKind = 'uploaded' | 'approved' | 'rejected' | 'course_added'
+type ActivityKind = 'uploaded' | 'course_added'
 
 type Activity = { id: string; kind: ActivityKind; text: string; actor: string | null; at: string }
 
@@ -42,8 +40,6 @@ const TYPES: { label: string; color: string; icon: LucideIcon }[] = [
 
 const ACTIVITY_ICON: Record<ActivityKind, { icon: LucideIcon; className: string }> = {
   uploaded: { icon: FileText, className: '' },
-  approved: { icon: CircleCheck, className: 'ad-act-approved' },
-  rejected: { icon: CircleX, className: 'ad-act-rejected' },
   course_added: { icon: GraduationCap, className: '' },
 }
 
@@ -54,11 +50,11 @@ const SAMPLE: DashboardData = {
   total_resources: 415,
   resources_by_type: { Midsem: 150, Endsem: 180, 'Lab Test': 40, Tutorials: 45 },
   recent_activity: [
-    { id: '1', kind: 'uploaded', text: 'CSE201 Midsem 2026 submitted for review', actor: 'Vanshika Aggarwal', at: new Date().toISOString() },
-    { id: '2', kind: 'approved', text: 'CSE203 Endsem 2025 approved', actor: 'Admin', at: new Date(Date.now() - 26 * 3600e3).toISOString() },
-    { id: '3', kind: 'rejected', text: 'CSE204 Lab Test 2025 rejected', actor: 'Admin', at: '2025-05-12T10:00:00Z' },
-    { id: '4', kind: 'course_added', text: 'New course added: MAT201', actor: null, at: '2025-05-11T10:00:00Z' },
-    { id: '5', kind: 'uploaded', text: 'CSE202 Tutorials 2025 submitted for review', actor: 'Niharika Girdhar', at: '2025-05-10T10:00:00Z' },
+    { id: '1', kind: 'uploaded', text: 'CSE201 Midsem 2026 uploaded and published', actor: 'Student', at: new Date().toISOString() },
+    { id: '2', kind: 'course_added', text: 'New course added: MAT201', actor: null, at: new Date(Date.now() - 26 * 3600e3).toISOString() },
+    { id: '3', kind: 'uploaded', text: 'CSE204 Lab Test 2025 uploaded and published', actor: 'Student', at: '2025-05-12T10:00:00Z' },
+    { id: '4', kind: 'course_added', text: 'New course added: PHY201', actor: null, at: '2025-05-11T10:00:00Z' },
+    { id: '5', kind: 'uploaded', text: 'CSE202 Tutorials 2025 uploaded and published', actor: 'Student', at: '2025-05-10T10:00:00Z' },
   ],
 }
 
@@ -195,7 +191,7 @@ export default function AdminDashboard() {
               className="ad-donut"
               style={{ background: `conic-gradient(${ring})` }}
               role="img"
-              aria-label="Share of approved papers by type"
+              aria-label="Share of published papers by type"
             />
             <ul className="ad-legend">
               {segments.map((s) => (
@@ -208,7 +204,7 @@ export default function AdminDashboard() {
               ))}
             </ul>
           </div>
-          {data && total === 0 && <p className="ad-empty">No approved resources yet.</p>}
+          {data && total === 0 && <p className="ad-empty">No published resources yet.</p>}
         </section>
       </div>
     </div>

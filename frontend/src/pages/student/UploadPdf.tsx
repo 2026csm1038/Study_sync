@@ -32,9 +32,8 @@ const sizeLabel = (bytes: number) =>
 
 /**
  * Page 4: Upload PDF (student).
- * POST /api/submissions: the backend first checks whether this course + year + exam type (or this exact file)
- * already exists. If so the upload is rejected with a reason; otherwise the PDF is stored privately in Supabase
- * Storage as "pending" and moves to Google Drive only after an admin approves it.
+ * POST /api/submissions validates the PDF, checks duplicates, uploads it directly to the
+ * configured Google Shared Drive, and publishes its metadata immediately.
  */
 export default function UploadPdf() {
   const fileInput = useRef<HTMLInputElement>(null)
@@ -141,15 +140,15 @@ export default function UploadPdf() {
         <div className="up-toast" role="status">
           <CircleCheck size={22} aria-hidden="true" />
           <div>
-            <strong>Paper submitted for review</strong>
-            <span>It goes live after admin approval.</span>
+            <strong>Paper uploaded successfully</strong>
+            <span>Your PDF is now available in StudySync.</span>
           </div>
         </div>
       )}
 
       <header>
         <h1>Upload Previous Year Paper</h1>
-        <p className="st-sub">Upload a PDF for review. It goes live after admin approval.</p>
+        <p className="st-sub">Upload a PDF directly to StudySync. It becomes available as soon as the upload succeeds.</p>
       </header>
 
       <form className="up-card" onSubmit={handleSubmit} noValidate>
@@ -240,7 +239,7 @@ export default function UploadPdf() {
 
         {rejection && (
           <div className="up-rejected" role="alert">
-            <strong>Upload rejected</strong>
+            <strong>Duplicate upload</strong>
             <span>{rejection}</span>
           </div>
         )}
@@ -248,7 +247,7 @@ export default function UploadPdf() {
 
         <div className="up-actions">
           <button type="submit" className="up-submit" disabled={submitting}>
-            Submit for Review
+            Upload PDF
           </button>
         </div>
       </form>

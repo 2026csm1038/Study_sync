@@ -39,8 +39,8 @@ def upload_paper(
     file: UploadFile = File(...),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Check the details for a duplicate first. A duplicate is rejected with 409 and the reason
-    in `detail`; otherwise the PDF is stored privately and the submission starts as 'pending'."""
+    """Validate the PDF, upload it to Google Drive, and publish its metadata immediately.
+    Duplicate uploads are rejected with HTTP 409 and a human-readable reason."""
     return service.submit_paper(user, details, file)
 
 
