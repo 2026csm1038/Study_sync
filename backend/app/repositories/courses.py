@@ -68,6 +68,11 @@ def get_course(course_id: UUID) -> CourseOut:
     return CourseOut.model_validate(rows[0])
 
 
+def find_by_code(course_code: str) -> CourseOut | None:
+    rows = _table().select("*").eq("course_code", course_code.strip().upper()).limit(1).execute().data
+    return CourseOut.model_validate(rows[0]) if rows else None
+
+
 def create_course(data: CourseCreate) -> CourseOut:
     try:
         rows = _table().insert(data.model_dump(mode="json")).execute().data

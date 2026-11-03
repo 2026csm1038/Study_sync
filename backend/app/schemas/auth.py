@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -23,9 +24,15 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+# What a person can choose on the signup form. "admin" can never be chosen here:
+# admins are promoted by hand in the database.
+SignupRole = Literal["student", "professor"]
+
+
 class SignupRequest(BaseModel):
+    role: SignupRole = "student"
     full_name: str = Field(min_length=2, max_length=150)
-    entry_number: str
+    entry_number: str | None = None  # students only; professors don't have one
     email: str = Field(max_length=254)
     password: str = Field(min_length=8, max_length=128)
 
@@ -34,9 +41,13 @@ class SignupRequest(BaseModel):
     def _strip_name(cls, v):
         return v.strip() if isinstance(v, str) else v
 
-    @field_validator("entry_number")
+    @field_validator("entry_number", mode="before")
     @classmethod
-    def _check_entry(cls, v: str) -> str:
+    def _check_entry(cls, v):
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None  # an empty box means "no entry number"
+        if not isinstance(v, str):
+            raise ValueError("Enter a valid entry number, for example 2026CSM1038.")
         v = v.strip()
         if not ENTRY_NUMBER_RE.match(v):
             raise ValueError("Enter a valid entry number, for example 2026CSM1038.")
@@ -57,6 +68,23 @@ class SignupRequest(BaseModel):
     @classmethod
     def _check_password(cls, v: str) -> str:
         return check_password_strength(v)
+
+    @model_validator(mode="after")
+    def _role_rules(self):
+        """The rules that depend on which kind of account is being created."""
+        if self.role == "student":
+            if not self.entry_number:
+                raise ValueError("Enter your entry number, for example 2026CSM1038.")
+        else:
+            # Professors have no entry number. Their email must also NOT look like a student's:
+            # student emails are built from the entry number (e.g. 2026csm1038@iitrpr.ac.in), so this
+            # stops a student from signing up as a professor to get a professor's weight on flags.
+            self.entry_number = None
+            if ENTRY_NUMBER_RE.match(self.email.rsplit("@", 1)[0]):
+                raise ValueError(
+                    "This looks like a student email address. Professors must sign up with their faculty email."
+                )
+        return self
 
 
 class RefreshRequest(BaseModel):

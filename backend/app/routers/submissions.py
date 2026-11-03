@@ -20,7 +20,11 @@ router = APIRouter(prefix="/api/submissions", tags=["submissions"])
 
 
 def submission_details(
-    course_id: UUID = Form(...),
+    course_id: UUID | None = Form(default=None),
+    course_code: str | None = Form(default=None),
+    course_name: str | None = Form(default=None),
+    department: str | None = Form(default=None),
+    semester: int | None = Form(default=None),
     exam_year: int = Form(...),
     exam_type: ExamType = Form(...),
     tags: str | None = Form(default=None),
@@ -28,7 +32,16 @@ def submission_details(
     """The text fields of the upload form, checked by the SubmissionCreate model.
     (A multipart request can't be read as one JSON-style model, so each field is a Form field.)"""
     try:
-        return SubmissionCreate(course_id=course_id, exam_year=exam_year, exam_type=exam_type, tags=tags)
+        return SubmissionCreate(
+            course_id=course_id,
+            course_code=course_code,
+            course_name=course_name,
+            department=department,
+            semester=semester,
+            exam_year=exam_year,
+            exam_type=exam_type,
+            tags=tags,
+        )
     except ValidationError as exc:
         raise RequestValidationError(exc.errors(include_url=False, include_context=False))
 

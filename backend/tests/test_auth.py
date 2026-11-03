@@ -103,6 +103,68 @@ def test_signup_only_allows_college_email_domains(env, monkeypatch):
     assert env.client.post("/api/auth/signup", json={**SIGNUP, "email": "A@IITRPR.ac.in"}).status_code == 201
 
 
+# -------------------------------------------------------- professors ---
+
+PROF = {"role": "professor", "full_name": "Dr Rao", "email": "rao@iitrpr.ac.in", "password": "abcdefg1"}
+
+
+def _prof_signup(env, body=None, session=None):
+    env.anon.auth.sign_up.return_value = NS(user=NS(id="p1", email="rao@iitrpr.ac.in", identities=[object()]), session=session)
+    return env.client.post("/api/auth/signup", json=body or PROF)
+
+
+def test_professor_signup_needs_no_entry_number_and_sets_role_on_the_server(env, monkeypatch):
+    monkeypatch.setattr(auth_schema, "settings", NS(allowed_email_domains=["iitrpr.ac.in"]))
+    r = _prof_signup(env)
+    assert r.status_code == 201 and r.json()["needs_email_confirmation"] is True
+    sent = env.anon.auth.sign_up.call_args.args[0]
+    assert sent["options"]["data"].get("entry_number") is None
+    assert "role" not in sent["options"]["data"]                 # never trusted from the browser
+    env.admin.auth.admin.update_user_by_id.assert_called_once_with("p1", {"app_metadata": {"signup_role": "professor"}})
+
+
+def test_professor_ignores_an_entry_number_if_one_is_sent(env):
+    assert _prof_signup(env, {**PROF, "entry_number": "2026CSM1099"}).status_code == 201
+    assert env.anon.auth.sign_up.call_args.args[0]["options"]["data"]["entry_number"] is None
+
+
+def test_professor_with_a_student_style_email_is_rejected(env):
+    r = _prof_signup(env, {**PROF, "email": "2026csm1038@iitrpr.ac.in"})
+    assert r.status_code == 422 and "student email" in str(r.json())
+    env.anon.auth.sign_up.assert_not_called()
+
+
+def test_professor_must_still_use_a_college_email(env, monkeypatch):
+    monkeypatch.setattr(auth_schema, "settings", NS(allowed_email_domains=["iitrpr.ac.in"]))
+    assert _prof_signup(env, {**PROF, "email": "rao@gmail.com"}).status_code == 422
+
+
+def test_student_still_needs_an_entry_number(env):
+    r = env.client.post("/api/auth/signup", json={**SIGNUP, "entry_number": None})
+    assert r.status_code == 422
+    r = env.client.post("/api/auth/signup", json={**SIGNUP, "entry_number": "  "})
+    assert r.status_code == 422
+
+
+def test_admin_cannot_be_chosen_at_signup(env):
+    assert env.client.post("/api/auth/signup", json={**PROF, "role": "admin"}).status_code == 422
+
+
+def test_student_signup_never_touches_app_metadata(env):
+    env.anon.auth.sign_up.return_value = NS(user=NS(id="u3", email="new@x.com", identities=[object()]), session=None)
+    env.client.post("/api/auth/signup", json=SIGNUP)
+    env.admin.auth.admin.update_user_by_id.assert_not_called()
+
+
+def test_professor_signup_with_confirmation_off_switches_the_new_profile(env):
+    env.db["profiles"].append({"id": "p1", "email": "rao@iitrpr.ac.in", "full_name": "Dr Rao",
+                               "entry_number": None, "role": "student"})
+    new = {"id": "p1", "email": "rao@iitrpr.ac.in", "full_name": "Dr Rao", "entry_number": None, "role": "professor"}
+    r = _prof_signup(env, session=make_session(new))
+    assert r.status_code == 201
+    assert [p for p in env.db["profiles"] if p["id"] == "p1"][0]["role"] == "professor"
+
+
 # ------------------------------------------------- email confirmation ---
 
 def test_confirm_email(env):

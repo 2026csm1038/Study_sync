@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-Role = Literal["student", "admin"]
+Role = Literal["student", "professor", "admin"]
 
 
 class ProfileRow(BaseModel):

@@ -81,6 +81,20 @@
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid #d9dcea;
+  border-radius: 12px;
+  background: #fff;
+  color: #1d2540;
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+}
+.field select:focus { border-color: var(--purple); box-shadow: 0 0 0 4px rgba(92, 78, 229, 0.14); }
+.field select[aria-invalid='true'] { border-color: #d64545; }
 .field input::placeholder { color: #a6abbd; }
 .field input:focus { border-color: var(--purple); box-shadow: 0 0 0 4px rgba(92, 78, 229, 0.14); }
 .field input[aria-invalid='true'] { border-color: #d64545; }
