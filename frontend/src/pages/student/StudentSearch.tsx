@@ -1,9 +1,11 @@
 import {
   ChevronDown,
   CircleHelp,
+  CheckCircle2,
   ClipboardList,
   FileCheck,
   FileText,
+  Flag,
   Search,
   type LucideIcon,
 } from 'lucide-react'
@@ -94,6 +96,18 @@ function ResultRow({ item }: { item: ResourceResult }) {
   const style = TYPE_STYLE[item.resource_type] ?? TYPE_STYLE.Midsem
   const Icon = style.icon
   const [opening, setOpening] = useState(false)
+  const [reporting, setReporting] = useState(false)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportReason, setReportReason] = useState('incorrect_content')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportError, setReportError] = useState<string | null>(null)
+  const [reportSuccess, setReportSuccess] = useState(false)
+
+  useEffect(() => {
+    if (!reportSuccess) return
+    const timeout = window.setTimeout(() => setReportSuccess(false), 4000)
+    return () => window.clearTimeout(timeout)
+  }, [reportSuccess])
 
   const meta = [
     item.course_code,
@@ -103,6 +117,25 @@ function ResultRow({ item }: { item: ResourceResult }) {
   ]
     .filter(Boolean)
     .join(' • ')
+
+  async function handleReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setReporting(true)
+    setReportError(null)
+    try {
+      await api(`/api/resource-flags/${encodeURIComponent(item.id)}`, {
+        method: 'POST',
+        body: { reason: reportReason, details: reportDetails.trim() || null },
+      })
+      setReportModalOpen(false)
+      setReportDetails('')
+      setReportSuccess(true)
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : 'Could not submit the report.')
+    } finally {
+      setReporting(false)
+    }
+  }
 
   async function handleView() {
     // Open a tab immediately so the browser doesn't block it after the fetch.
@@ -155,12 +188,119 @@ function ResultRow({ item }: { item: ResourceResult }) {
 
       <button
         type="button"
+        className="st-report-flag"
+        title="Report this resource"
+        aria-label={`Report ${item.title}`}
+        onClick={() => {
+          setReportError(null)
+          setReportSuccess(false)
+          setReportModalOpen(true)
+        }}
+      >
+        <Flag size={20} fill="currentColor" strokeWidth={2} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
         className="st-view"
         disabled={opening}
         onClick={handleView}
       >
         {opening ? 'Opening…' : 'View'}
       </button>
+      {reportSuccess && (
+        <div className="st-report-toast" role="status" aria-live="polite">
+          <CheckCircle2 size={20} aria-hidden="true" />
+          <div>
+            <strong>Report submitted</strong>
+            <span>Thank you for helping keep StudySync reliable.</span>
+          </div>
+        </div>
+      )}
+
+      {reportModalOpen && (
+        <div
+          className="st-report-overlay"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !reporting) setReportModalOpen(false)
+          }}
+        >
+          <section
+            className="st-report-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={`report-title-${item.id}`}
+          >
+            <div className="st-report-modal-header">
+              <div>
+                <h2 id={`report-title-${item.id}`}>Report this resource</h2>
+                <p>Help us keep StudySync’s resources accurate and useful.</p>
+              </div>
+              <button
+                type="button"
+                className="st-report-close"
+                aria-label="Close report dialog"
+                disabled={reporting}
+                onClick={() => setReportModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleReport}>
+              <fieldset className="st-report-reasons">
+                <legend>Why are you reporting this resource?</legend>
+                {[
+                  ['incorrect_content', 'Incorrect content'],
+                  ['duplicate', 'Duplicate resource'],
+                  ['poor_quality', 'Poor quality or unreadable'],
+                  ['inappropriate', 'Inappropriate content'],
+                  ['other', 'Other'],
+                ].map(([value, label]) => (
+                  <label className="st-report-option" key={value}>
+                    <input
+                      type="radio"
+                      name={`report-reason-${item.id}`}
+                      value={value}
+                      checked={reportReason === value}
+                      onChange={() => setReportReason(value)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </fieldset>
+
+              <label className="st-report-details-label" htmlFor={`report-details-${item.id}`}>
+                Additional details <span>(optional)</span>
+              </label>
+              <textarea
+                id={`report-details-${item.id}`}
+                className="st-report-details"
+                value={reportDetails}
+                onChange={(event) => setReportDetails(event.target.value)}
+                maxLength={1000}
+                rows={3}
+                placeholder="Tell us a little more about the issue…"
+              />
+              <div className="st-report-footer">
+                {reportError && <p className="st-report-error" role="alert">{reportError}</p>}
+                <div className="st-report-actions">
+                  <button
+                    type="button"
+                    className="st-report-cancel"
+                    disabled={reporting}
+                    onClick={() => setReportModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="st-report-submit" disabled={reporting}>
+                    {reporting ? 'Submitting…' : 'Submit report'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </li>
   )
 }

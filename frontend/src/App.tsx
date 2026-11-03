@@ -16,6 +16,7 @@ import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminProfile from './pages/admin/AdminProfile'
 import AdminUpload from './pages/admin/AdminUpload'
 import ManageCourses from './pages/admin/ManageCourses'
+import ManageFlags from './pages/admin/ManageFlags'
 import './styles.css'
 import './auth.css'
 
@@ -52,6 +53,7 @@ export default function App() {
             <Route element={<AdminLayout />}>
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/courses" element={<ManageCourses />} />
+              <Route path="/admin/reports" element={<ManageFlags />} />
               <Route path="/admin/upload" element={<AdminUpload />} />
               <Route path="/admin/profile" element={<AdminProfile />} />
             </Route>
