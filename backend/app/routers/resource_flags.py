@@ -11,6 +11,16 @@ from ..supabase_client import admin
 from ..services.google_drive import delete_file_from_shared_drive
 
 router = APIRouter(prefix="/api/resource-flags", tags=["resource flags"])
+# How much one report counts towards a resource's priority. A report from a professor / faculty
+# member counts for more, so flagged resources they care about reach the top of the admin's list.
+FLAG_WEIGHT = {"student": 1, "professor": 5, "admin": 5}
+DEFAULT_WEIGHT = 1
+
+
+def weight_for(role: str | None) -> int:
+    return FLAG_WEIGHT.get(role or "", DEFAULT_WEIGHT)
+
+
 REASONS = {"incorrect_content", "duplicate", "poor_quality", "inappropriate", "other"}
 
 
@@ -53,13 +63,14 @@ def list_flags(status: Literal["open", "resolved", "dismissed"] | None = None):
     reporter_ids = list({str(f["reporter_id"]) for f in flags if f.get("reporter_id")})
     names = {}
     if reporter_ids:
-        people = admin().table("profiles").select("id,full_name,email").in_("id", reporter_ids).execute().data or []
+        people = admin().table("profiles").select("id,full_name,email,role").in_("id", reporter_ids).execute().data or []
         names = {str(p["id"]): p for p in people}
     result = []
     for flag in flags:
         resource = flag.pop("resource_submissions", None) or {}
         flag["resource"] = resource
         flag["reporter"] = names.get(str(flag["reporter_id"]), {})
+        flag["weight"] = weight_for(flag["reporter"].get("role"))
         result.append(flag)
     return result
 
