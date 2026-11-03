@@ -58,3 +58,26 @@
 @media (max-width: 720px) { .up-grid { grid-template-columns: 1fr; } }
 .up-rejected { display: flex; flex-direction: column; gap: 2px; margin: 18px 0 0; padding: 12px 14px; background: #fdeeee; border: 1px solid #f3c4c4; border-radius: 10px; color: #a12a2a; font-size: 13px; }
 .up-rejected strong { font-size: 14px; }
+
+/* =====================================================================
+   Polish layer
+   ===================================================================== */
+.up-card { max-width: 780px; padding: 30px 32px; border-radius: 16px; box-shadow: var(--shadow-md); }
+.up-card h2 { font-size: 17px; font-weight: 700; padding-bottom: 14px; margin-bottom: 20px; border-bottom: 1px solid #eef0f7; }
+
+.up-drop { min-height: 148px; gap: 8px; border: 1.5px dashed #c3cbea; border-radius: 14px; background: linear-gradient(180deg, #f9faff, #f3f5ff); transition: background .15s, border-color .15s, box-shadow .15s; }
+.up-drop strong { font-size: 15px; }
+.up-drop span { font-size: 12px; color: #7a8097; }
+.up-drop:hover, .up-drop-active { background: #f0efff; border-color: var(--purple); box-shadow: inset 0 0 0 3px rgba(92, 78, 229, .08); }
+.up-selected { padding: 12px 16px; border: 1px solid #dcd8fb; border-radius: 12px; background: #f4f3ff; }
+
+.up-grid { gap: 18px 22px; margin-top: 26px; }
+.up-field { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: #7a8097; }
+.up-field select, .up-field input { height: 46px; border-radius: 10px; border-color: #dcdff0; background-color: #fbfbff; font-size: 14px; letter-spacing: 0; text-transform: none; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+.up-field select:hover, .up-field input:hover { border-color: #b9bedb; }
+.up-field select:focus, .up-field input:focus { background-color: #fff; box-shadow: var(--ring); }
+.up-actions { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eef0f7; }
+.up-submit { height: 46px; padding: 0 32px; border-radius: 11px; background: linear-gradient(180deg, #6558ee, var(--purple)); box-shadow: 0 6px 16px rgba(92, 78, 229, .3); transition: transform .15s, box-shadow .15s; }
+.up-submit:hover:not(:disabled) { background: linear-gradient(180deg, #5a4de8, var(--purple-dark)); transform: translateY(-1px); box-shadow: 0 10px 22px rgba(92, 78, 229, .34); }
+.up-toast { border-radius: 12px; box-shadow: 0 14px 34px rgba(23, 32, 51, .16); }
+.up-rejected { border-radius: 11px; }
