@@ -28,3 +28,19 @@ def get_many(user_ids: list[str]) -> dict[str, ProfileRow]:
         return {}
     rows = admin().table("profiles").select(COLUMNS).in_("id", list(set(user_ids))).execute().data
     return {str(r["id"]): ProfileRow.model_validate(r) for r in rows}
+
+
+def make_professor(user_id: str) -> None:
+    """Turn a just-created student profile into a professor profile (no entry number).
+
+    Only used when the email did not need confirming, so the profile already exists by the time
+    the signup endpoint knows the role. It only ever changes a 'student' row, so it can never
+    touch an admin."""
+    (
+        admin()
+        .table("profiles")
+        .update({"role": "professor", "entry_number": None})
+        .eq("id", user_id)
+        .eq("role", "student")
+        .execute()
+    )

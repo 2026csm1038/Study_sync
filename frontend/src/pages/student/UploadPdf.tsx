@@ -7,9 +7,19 @@ import '../../upload.css'
 
 type Course = { id: string; course_code: string; course_name: string }
 
-/** The four fields on the Page 4 wireframe. */
+type Department = { id: string; name: string; code: string | null }
+
+/** Value of the course dropdown that means "type a new course instead". */
+const NEW_COURSE = '__new__'
+const SEMESTERS = Array.from({ length: 12 }, (_, i) => String(i + 1))
+
+/** The fields on the Page 4 wireframe, plus the details of a course typed by the student. */
 export type UploadForm = {
   courseId: string
+  courseCode: string
+  courseName: string
+  department: string
+  semester: string
   year: string
   examType: string
   tags: string
@@ -22,7 +32,16 @@ type FormErrors = Partial<Record<'file' | keyof UploadForm, string>>
 const YEARS = ['2026', '2025', '2024', '2023']
 const EXAM_TYPES = ['Midsem', 'Endsem', 'Lab Test', 'Tutorials']
 const MAX_BYTES = 2 * 1024 * 1024 // wireframe: "PDF only · max size 2MB"
-const EMPTY_FORM: UploadForm = { courseId: '', year: '', examType: '', tags: '' }
+const EMPTY_FORM: UploadForm = {
+  courseId: '',
+  courseCode: '',
+  courseName: '',
+  department: '',
+  semester: '',
+  year: '',
+  examType: '',
+  tags: '',
+}
 
 const isPdf = (f: File) => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')
 const sizeLabel = (bytes: number) =>
@@ -40,6 +59,7 @@ export default function UploadPdf() {
   const [file, setFile] = useState<File | null>(null)
   const [form, setForm] = useState<UploadForm>(EMPTY_FORM)
   const [courses, setCourses] = useState<Course[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [errors, setErrors] = useState<FormErrors>({})
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -52,6 +72,10 @@ export default function UploadPdf() {
     api<Course[]>('/api/courses')
       .then(setCourses)
       .catch(() => setCourses([]))
+    // used only to suggest names while typing a new course's department
+    api<Department[]>('/api/departments')
+      .then(setDepartments)
+      .catch(() => setDepartments([]))
   }, [])
 
   useEffect(() => {
@@ -94,6 +118,15 @@ export default function UploadPdf() {
     const next: FormErrors = {}
     if (!file) next.file = errors.file ?? 'Choose a PDF to upload.'
     if (!form.courseId) next.courseId = 'Select a course.'
+    if (form.courseId === NEW_COURSE) {
+      delete next.courseId
+      if (!/^[A-Za-z0-9-]{3,30}$/.test(form.courseCode.trim())) {
+        next.courseCode = 'Letters, digits and hyphens only, e.g. CSE301.'
+      }
+      if (form.courseName.trim().length < 2) next.courseName = 'Enter the course name.'
+      if (!form.department.trim()) next.department = 'Enter the department.'
+      if (!form.semester) next.semester = 'Select a semester.'
+    }
     if (!form.year) next.year = 'Select a year.'
     if (!form.examType) next.examType = 'Select an exam type.'
     setErrors(next)
@@ -104,7 +137,15 @@ export default function UploadPdf() {
   async function submitResource(pdf: File) {
     const data = new FormData()
     data.append('file', pdf)
-    data.append('course_id', form.courseId)
+    if (form.courseId === NEW_COURSE) {
+      // a course that isn't in the list yet: the server adds it (and its department if needed)
+      data.append('course_code', form.courseCode.trim())
+      data.append('course_name', form.courseName.trim())
+      data.append('department', form.department.trim())
+      data.append('semester', form.semester)
+    } else {
+      data.append('course_id', form.courseId)
+    }
     data.append('exam_year', form.year)
     data.append('exam_type', form.examType)
     if (form.tags.trim()) data.append('tags', form.tags.trim())
@@ -120,6 +161,11 @@ export default function UploadPdf() {
     try {
       await submitResource(file)
       setShowToast(true)
+      if (form.courseId === NEW_COURSE) {
+        // refresh so the course that was just added shows up in the list
+        api<Course[]>('/api/courses').then(setCourses).catch(() => undefined)
+        api<Department[]>('/api/departments').then(setDepartments).catch(() => undefined)
+      }
       setForm(EMPTY_FORM)
       removeFile()
     } catch (err) {
@@ -196,9 +242,63 @@ export default function UploadPdf() {
                   {c.course_code} · {c.course_name}
                 </option>
               ))}
+              <option value={NEW_COURSE}>+ My course isn't listed</option>
             </select>
             {errors.courseId && <em className="up-error">{errors.courseId}</em>}
           </label>
+
+          {form.courseId === NEW_COURSE && (
+            <>
+              <label className="up-field">
+                <span>Course Code</span>
+                <input
+                  type="text"
+                  value={form.courseCode}
+                  onChange={(e) => setField('courseCode', e.target.value)}
+                  placeholder="e.g. CSE301"
+                />
+                {errors.courseCode && <em className="up-error">{errors.courseCode}</em>}
+              </label>
+              <label className="up-field">
+                <span>Course Name</span>
+                <input
+                  type="text"
+                  value={form.courseName}
+                  onChange={(e) => setField('courseName', e.target.value)}
+                  placeholder="e.g. Compilers"
+                />
+                {errors.courseName && <em className="up-error">{errors.courseName}</em>}
+              </label>
+              <label className="up-field">
+                <span>Department</span>
+                <input
+                  type="text"
+                  list="up-departments"
+                  value={form.department}
+                  onChange={(e) => setField('department', e.target.value)}
+                  placeholder="Pick one or type a new one"
+                />
+                <datalist id="up-departments">
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.name} />
+                  ))}
+                </datalist>
+                {errors.department && <em className="up-error">{errors.department}</em>}
+              </label>
+              <label className="up-field">
+                <span>Semester</span>
+                <select value={form.semester} onChange={(e) => setField('semester', e.target.value)}>
+                  <option value="">Select semester</option>
+                  {SEMESTERS.map((n) => (
+                    <option key={n} value={n}>
+                      Semester {n}
+                    </option>
+                  ))}
+                </select>
+                {errors.semester && <em className="up-error">{errors.semester}</em>}
+              </label>
+            </>
+          )}
 
           <label className="up-field">
             <span>Year</span>

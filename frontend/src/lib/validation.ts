@@ -12,6 +12,14 @@ export function isValidEntryNumber(value: string): boolean {
   return ENTRY_NUMBER_RE.test(value.trim())
 }
 
+/**
+ * A professor's email must not look like a student's: student emails are made from the entry number
+ * (2026csm1038@iitrpr.ac.in). The server checks this too; this is just the quick message.
+ */
+export function looksLikeStudentEmail(value: string): boolean {
+  return ENTRY_NUMBER_RE.test(value.trim().split('@')[0])
+}
+
 /** Returns an error message, or '' when the password is acceptable. */
 export function validatePassword(value: string): string {
   if (value.length < 8) return 'Password must be at least 8 characters.'

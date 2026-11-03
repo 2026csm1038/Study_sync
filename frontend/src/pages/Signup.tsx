@@ -2,9 +2,9 @@ import { MailCheck } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthLayout } from '../components/AuthLayout'
-import { PasswordField, TextField } from '../components/FormFields'
-import { homePathFor, useAuth } from '../context/AuthContext'
-import { isValidEmail, isValidEntryNumber, validatePassword } from '../lib/validation'
+import { PasswordField, SelectField, TextField } from '../components/FormFields'
+import { homePathFor, useAuth, type SignupRole } from '../context/AuthContext'
+import { isValidEmail, isValidEntryNumber, looksLikeStudentEmail, validatePassword } from '../lib/validation'
 
 type Errors = Partial<
   Record<'fullName' | 'entryNumber' | 'email' | 'password' | 'confirmPassword', string>
@@ -14,6 +14,7 @@ export default function Signup() {
   const { signUp } = useAuth()
   const navigate = useNavigate()
 
+  const [role, setRole] = useState<SignupRole>('student')
   const [fullName, setFullName] = useState('')
   const [entryNumber, setEntryNumber] = useState('')
   const [email, setEmail] = useState('')
@@ -27,10 +28,13 @@ export default function Signup() {
   function validate(): Errors {
     const next: Errors = {}
     if (fullName.trim().length < 2) next.fullName = 'Enter your full name.'
-    if (!isValidEntryNumber(entryNumber)) {
+    if (role === 'student' && !isValidEntryNumber(entryNumber)) {
       next.entryNumber = 'Enter a valid entry number, for example 2026CSM1038.'
     }
     if (!isValidEmail(email)) next.email = 'Enter a valid email address.'
+    else if (role === 'professor' && looksLikeStudentEmail(email)) {
+      next.email = 'This looks like a student email address. Use your faculty email.'
+    }
     const passwordProblem = validatePassword(password)
     if (passwordProblem) next.password = passwordProblem
     if (confirmPassword !== password) next.confirmPassword = 'Passwords do not match.'
@@ -47,7 +51,7 @@ export default function Signup() {
 
     setSubmitting(true)
     try {
-      const result = await signUp({ fullName, entryNumber, email, password })
+      const result = await signUp({ role, fullName, entryNumber, email, password })
       if (result.needsEmailConfirmation) {
         setConfirmationSentTo(email.trim().toLowerCase())
       } else if (result.profile) {
@@ -95,6 +99,17 @@ export default function Signup() {
       )}
 
       <form onSubmit={handleSubmit} noValidate>
+        <SelectField
+          id="role"
+          label="I am a"
+          value={role}
+          onChange={(v) => setRole(v as SignupRole)}
+          options={[
+            { value: 'student', label: 'Student' },
+            { value: 'professor', label: 'Professor / Faculty' },
+          ]}
+          disabled={submitting}
+        />
         <TextField
           id="fullName"
           label="Full Name"
@@ -104,16 +119,18 @@ export default function Signup() {
           autoComplete="name"
           disabled={submitting}
         />
-        <TextField
-          id="entryNumber"
-          label="Entry Number"
-          value={entryNumber}
-          onChange={setEntryNumber}
-          error={errors.entryNumber}
-          placeholder="2026CSM1038"
-          autoComplete="off"
-          disabled={submitting}
-        />
+        {role === 'student' && (
+          <TextField
+            id="entryNumber"
+            label="Entry Number"
+            value={entryNumber}
+            onChange={setEntryNumber}
+            error={errors.entryNumber}
+            placeholder="2026CSM1038"
+            autoComplete="off"
+            disabled={submitting}
+          />
+        )}
         <TextField
           id="email"
           label="Email"

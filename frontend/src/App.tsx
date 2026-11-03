@@ -40,7 +40,7 @@ export default function App() {
           <Route path="/confirm-email" element={<ConfirmEmail />} />
 
           {/* students only: every student page shares the sidebar (StudentLayout) */}
-          <Route element={<ProtectedRoute role="student" />}>
+          <Route element={<ProtectedRoute role={['student', 'professor']} />}>
             <Route element={<StudentLayout />}>
               <Route path="/student" element={<StudentSearch />} />
               <Route path="/student/upload" element={<UploadPdf />} />

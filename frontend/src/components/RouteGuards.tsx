@@ -6,7 +6,7 @@ function FullPageMessage({ children }: { children: React.ReactNode }) {
 }
 
 /** Wrap pages that need a logged-in user of a specific role. */
-export function ProtectedRoute({ role }: { role: Role }) {
+export function ProtectedRoute({ role }: { role: Role | Role[] }) {
   const { loading, session, profile, signOut } = useAuth()
   const location = useLocation()
 
@@ -22,7 +22,8 @@ export function ProtectedRoute({ role }: { role: Role }) {
       </FullPageMessage>
     )
   }
-  if (profile.role !== role) return <Navigate to={homePathFor(profile.role)} replace />
+  const allowed = Array.isArray(role) ? role : [role]
+  if (!allowed.includes(profile.role)) return <Navigate to={homePathFor(profile.role)} replace />
   return <Outlet />
 }
 

@@ -9,7 +9,8 @@ import {
 } from 'react'
 import { api, ApiError, SESSION_EXPIRED_EVENT, tokenStore } from '../lib/api'
 
-export type Role = 'student' | 'admin'
+export type Role = 'student' | 'professor' | 'admin'
+export type SignupRole = 'student' | 'professor'
 
 export type Profile = {
   id: string
@@ -27,6 +28,7 @@ type SessionResponse = {
 }
 
 type SignUpInput = {
+  role: SignupRole
   fullName: string
   entryNumber: string
   email: string
@@ -59,6 +61,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function homePathFor(role: Role): string {
+  // professors use the same area as students (flagging for them comes later)
   return role === 'admin' ? '/admin' : '/student'
 }
 
@@ -111,8 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {
         method: 'POST',
         body: {
+          role: input.role,
           full_name: input.fullName,
-          entry_number: input.entryNumber,
+          // professors have no entry number
+          entry_number: input.role === 'student' ? input.entryNumber : null,
           email: input.email,
           password: input.password,
         },

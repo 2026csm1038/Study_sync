@@ -103,6 +103,10 @@ def env(monkeypatch):
     db = {
         "profiles": [dict(STUDENT), dict(ADMIN)],
         "resource_submissions": [],
+        "departments": [
+            {"id": DEPT_CSE, "name": "Computer Science and Engineering", "code": "CSE"},
+            {"id": DEPT_MATH, "name": "Mathematics", "code": "MATH"},
+        ],
         "courses": [
             make_course("CSE201", "Data Structures and Algorithms"),
             make_course("CSE202", "Operating Systems"),

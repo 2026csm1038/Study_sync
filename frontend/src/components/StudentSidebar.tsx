@@ -51,7 +51,7 @@ export function StudentSidebar() {
         </div>
         <div className="st-user-text">
           <strong>{profile?.full_name}</strong>
-          <span>{profile?.entry_number}</span>
+          <span>{profile?.entry_number ?? (profile?.role === 'professor' ? 'Professor' : '')}</span>
         </div>
       </div>
     </aside>

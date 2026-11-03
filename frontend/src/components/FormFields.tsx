@@ -47,6 +47,45 @@ export function TextField({
   )
 }
 
+export function SelectField({
+  id,
+  label,
+  value,
+  onChange,
+  options,
+  error,
+  disabled,
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  options: { value: string; label: string }[]
+  error?: string
+  disabled?: boolean
+}) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        name={id}
+        value={value}
+        disabled={disabled}
+        aria-invalid={Boolean(error)}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {error && <p className="field-error">{error}</p>}
+    </div>
+  )
+}
+
 export function PasswordField({
   id,
   label,

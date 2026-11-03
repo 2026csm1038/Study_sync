@@ -15,6 +15,8 @@ and reads of the profiles table live in repositories/profiles.py.
     GET  /api/auth/me               who am I?
     GET  /api/auth/admin-check      example admin-only route
 """
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from .. import deps, supabase_client
@@ -37,6 +39,7 @@ from ..schemas.auth import (
 )
 from ..schemas.profile import ProfileOut
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 # One message for every login failure, so the API never reveals whether an
@@ -110,10 +113,10 @@ def _build_session(auth_session) -> SessionOut:
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 def signup(body: SignupRequest):
-    """Create an account. Every new account is a student; admins are promoted in the database."""
+    """Create a student or professor account. Admins are promoted in the database, never here."""
     _require_supabase()
 
-    if profiles.entry_number_exists(body.entry_number):
+    if body.entry_number and profiles.entry_number_exists(body.entry_number):
         raise HTTPException(status.HTTP_409_CONFLICT, "This entry number is already registered.")
 
     try:
@@ -124,6 +127,7 @@ def signup(body: SignupRequest):
                 "options": {
                     # Stored on the auth user. The database trigger copies it into `profiles`
                     # ONLY once the email is confirmed.
+                    # (professors have no entry number, so it is simply absent for them)
                     "data": {"full_name": body.full_name, "entry_number": body.entry_number},
                     "email_redirect_to": f"{settings.frontend_url}/confirm-email",
                 },
@@ -144,11 +148,36 @@ def signup(body: SignupRequest):
     if user is not None and user.identities is not None and len(user.identities) == 0:
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
 
+    if body.role == "professor" and user is not None:
+        _mark_professor(user.id, confirmed=result.session is not None)
+
     if result.session is None:
         # email confirmation is on: the student must click the link in their inbox first
         return SignupResponse(needs_email_confirmation=True)
 
     return SignupResponse(needs_email_confirmation=False, session=_build_session(result.session))
+
+
+def _mark_professor(user_id: str, confirmed: bool) -> None:
+    """Record that this signup is a professor.
+
+    The role goes in `app_metadata`, which only the server (service role) can write. The browser-writable
+    `user_metadata` is never trusted for roles. The database trigger reads `app_metadata.signup_role`
+    when it creates the profile after email confirmation. If the profile already exists (email
+    confirmation off), it is switched over directly.
+    """
+    try:
+        supabase_client.admin().auth.admin.update_user_by_id(
+            user_id, {"app_metadata": {"signup_role": "professor"}}
+        )
+        if confirmed:
+            profiles.make_professor(user_id)
+    except Exception:
+        logger.exception("could not mark %s as professor", user_id)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Your account was created but could not be set up as a professor. Please contact an admin.",
+        )
 
 
 @router.post("/login", response_model=SessionOut)
