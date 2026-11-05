@@ -1,7 +1,6 @@
 import { CircleUser, FileUp, GraduationCap, House, LogOut, Flag } from 'lucide-react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { useReportSummary } from '../lib/useReportSummary'
 
 const LINKS = [
   { to: '/admin', label: 'Dashboard', icon: House },
@@ -14,7 +13,6 @@ const LINKS = [
 export function AdminSidebar() {
   const { profile, signOut } = useAuth() // profile comes from GET /api/auth/me
   const navigate = useNavigate()
-  const reports = useReportSummary()
 
   async function handleLogout() {
     await signOut() // POST /api/auth/logout, then clears the saved tokens
@@ -33,11 +31,6 @@ export function AdminSidebar() {
           <NavLink key={to} to={to} end className="st-nav-link">
             <Icon size={20} aria-hidden="true" />
             <span>{label}</span>
-            {to === '/admin/reports' && reports && reports.needs_attention > 0 && (
-              <span className="st-badge" aria-label={`${reports.needs_attention} resources need attention`}>
-                {reports.needs_attention}
-              </span>
-            )}
           </NavLink>
         ))}
 

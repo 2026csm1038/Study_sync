@@ -12,7 +12,6 @@ from .routers import resources as resources_router
 from .routers import resource_filters as resource_filters_router
 from .routers import departments as departments_router
 from .routers import admin_dashboard as admin_dashboard_router
-from .routers import admin_report_summary as admin_report_summary_router
 from .routers import resource_flags as resource_flags_router
 
 app = FastAPI(
@@ -42,7 +41,6 @@ app.include_router(resources_router.router)
 app.include_router(resource_filters_router.router)
 app.include_router(departments_router.router)
 app.include_router(admin_dashboard_router.router)
-app.include_router(admin_report_summary_router.router)
 app.include_router(resource_flags_router.router)
 
 @app.get("/api/health")

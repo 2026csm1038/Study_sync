@@ -10,8 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { PdfPreviewModal } from '../../components/PdfPreviewModal'
-import { api } from '../../lib/api'
+import { api, apiBlob } from '../../lib/api'
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -96,23 +95,13 @@ function FilterSelect(props: {
 function ResultRow({ item }: { item: ResourceResult }) {
   const style = TYPE_STYLE[item.resource_type] ?? TYPE_STYLE.Midsem
   const Icon = style.icon
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [opening, setOpening] = useState(false)
   const [reporting, setReporting] = useState(false)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [reportReason, setReportReason] = useState('incorrect_content')
   const [reportDetails, setReportDetails] = useState('')
   const [reportError, setReportError] = useState<string | null>(null)
   const [reportSuccess, setReportSuccess] = useState(false)
-
-  // Escape closes the report dialog (the preview underneath stays open until Escape is pressed again).
-  useEffect(() => {
-    if (!reportModalOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setReportModalOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [reportModalOpen])
 
   useEffect(() => {
     if (!reportSuccess) return
@@ -148,6 +137,40 @@ function ResultRow({ item }: { item: ResourceResult }) {
     }
   }
 
+  async function handleView() {
+    // Open a tab immediately so the browser doesn't block it after the fetch.
+    const tab = window.open('about:blank', '_blank')
+    if (!tab) {
+      alert('Please allow pop-ups for StudySync to view PDFs.')
+      return
+    }
+
+    tab.opener = null
+    setOpening(true)
+
+    let objectUrl: string | undefined
+
+    try {
+      const blob = await apiBlob(
+        `/api/resources/${encodeURIComponent(item.id)}/view`
+      )
+
+      objectUrl = URL.createObjectURL(blob)
+      tab.location.href = objectUrl
+
+      // Keep the blob URL available while the PDF loads.
+      window.setTimeout(() => {
+        if (objectUrl) URL.revokeObjectURL(objectUrl)
+      }, 60_000)
+    } catch (error) {
+      tab.close()
+      console.error('Could not open resource:', error)
+      alert(error instanceof Error ? error.message : 'Could not open this PDF.')
+    } finally {
+      setOpening(false)
+    }
+  }
+
   return (
     <li className="st-result">
       <div className={`st-result-icon ${style.className}`}>
@@ -176,22 +199,14 @@ function ResultRow({ item }: { item: ResourceResult }) {
       >
         <Flag size={20} fill="currentColor" strokeWidth={2} aria-hidden="true" />
       </button>
-      <button type="button" className="st-view" onClick={() => setPreviewOpen(true)}>
-        View
+      <button
+        type="button"
+        className="st-view"
+        disabled={opening}
+        onClick={handleView}
+      >
+        {opening ? 'Opening…' : 'View'}
       </button>
-      {previewOpen && (
-        <PdfPreviewModal
-          resourceId={item.id}
-          title={item.title}
-          subtitle={meta}
-          onClose={() => setPreviewOpen(false)}
-          onReport={() => {
-            setReportError(null)
-            setReportSuccess(false)
-            setReportModalOpen(true)
-          }}
-        />
-      )}
       {reportSuccess && (
         <div className="st-report-toast" role="status" aria-live="polite">
           <CheckCircle2 size={20} aria-hidden="true" />
