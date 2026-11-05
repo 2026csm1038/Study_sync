@@ -10,8 +10,6 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Flag } from 'lucide-react'
-import { useReportSummary } from '../../lib/useReportSummary'
 import { api, ApiError } from '../../lib/api'
 import { SHOW_SAMPLE_DATA } from '../../lib/demo'
 
@@ -79,7 +77,6 @@ function formatWhen(iso: string): string {
 
 /** Page 5: Admin Dashboard. Loads everything from GET /api/admin/dashboard. */
 export default function AdminDashboard() {
-  const reports = useReportSummary()
   const [data, setData] = useState<DashboardData | null>(SHOW_SAMPLE_DATA ? SAMPLE : null)
   const [error, setError] = useState('')
   const [visible, setVisible] = useState(VISIBLE_ACTIVITY)
@@ -125,19 +122,6 @@ export default function AdminDashboard() {
       </header>
 
       {error && <p className="ad-error" role="alert">{error}</p>}
-
-      {reports && reports.needs_attention > 0 && (
-        <Link to="/admin/reports" className="ad-alert">
-          <Flag size={20} aria-hidden="true" />
-          <span>
-            <strong>
-              {reports.needs_attention} {reports.needs_attention === 1 ? 'resource needs' : 'resources need'} attention.
-            </strong>{' '}
-            Their reports have reached the threshold, so you can review and delete them.
-          </span>
-          <em>Review reports</em>
-        </Link>
-      )}
 
       <section className="ad-stats" aria-label="Platform totals">
         {stats.map(({ label, value, icon: Icon }) => (

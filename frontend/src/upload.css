@@ -81,14 +81,3 @@
 .up-submit:hover:not(:disabled) { background: linear-gradient(180deg, #5a4de8, var(--purple-dark)); transform: translateY(-1px); box-shadow: 0 10px 22px rgba(92, 78, 229, .34); }
 .up-toast { border-radius: 12px; box-shadow: 0 14px 34px rgba(23, 32, 51, .16); }
 .up-rejected { border-radius: 11px; }
-
-/* ---------- hints, note and upload state ---------- */
-.up-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-.up-hint { margin: 0; font-size: 12px; font-style: normal; font-weight: 500; letter-spacing: 0; text-transform: none; color: #2a7a4d; }
-.up-hint-new { color: #8a5a00; }
-.up-link { padding: 0; border: 0; background: none; color: var(--purple); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
-.up-note { margin: 22px 0 0; font-size: 12.5px; line-height: 1.5; color: #7a8097; }
-.up-submit { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
-.up-spin { animation: up-rotate 0.8s linear infinite; }
-@keyframes up-rotate { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .up-spin { animation: none; } }
