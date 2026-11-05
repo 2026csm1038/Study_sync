@@ -131,3 +131,8 @@
 .ad-error { border: 1px solid #f4c4c4; border-radius: 10px; }
 .ad-donut::after { inset: 36px; }
 .ad-legend li { padding: 2px 0; }
+/* ---------- reports alert (Admin Dashboard) ---------- */
+.ad-alert { display: flex; align-items: center; gap: 12px; margin: 0 0 18px; padding: 14px 18px; border: 1px solid #fecaca; border-radius: 12px; background: #fef2f2; color: #991b1b; font-size: 14px; text-decoration: none; }
+.ad-alert span { flex: 1; }
+.ad-alert em { font-style: normal; font-weight: 700; }
+.ad-alert:hover { background: #fee2e2; }
