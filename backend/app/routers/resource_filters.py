@@ -8,11 +8,13 @@ The router only checks the parameters and who is asking; the query lives in repo
 
 (Text search by file name or tag alone is still GET /api/resources/search in routers/resources.py.)
 """
+from typing import get_args
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
 from ..deps import CurrentUser, get_current_user
+from ..repositories import dashboard as dashboard_stats
 from ..repositories import resources
 from ..schemas.resource import ResourceOut
 from ..schemas.submission import FIRST_YEAR, ExamType
@@ -50,3 +52,18 @@ def filter_resources(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/summary")
+def resource_summary(_user: CurrentUser = Depends(get_current_user)):
+    """Counts of published resources for the student search page.
+
+    Mirrors the resource-type counts shown on the Admin Dashboard, but is available
+    to any authenticated user and exposes no admin-only information.
+    """
+    exam_types = list(get_args(ExamType))
+    by_type = dashboard_stats.count_approved_by_type(exam_types)
+    return {
+        "total_resources": sum(by_type.values()),
+        "resources_by_type": by_type,
+    }

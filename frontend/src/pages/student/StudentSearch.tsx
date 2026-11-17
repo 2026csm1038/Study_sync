@@ -1,10 +1,11 @@
 import {
   ChevronDown,
-  CircleHelp,
+  BookOpen,
   CheckCircle2,
   ClipboardList,
   FileCheck,
   FileText,
+  Files,
   Flag,
   Search,
   type LucideIcon,
@@ -17,6 +18,11 @@ import { api, apiBlob } from '../../lib/api'
 type Course = { id: string; course_code: string; course_name: string }
 
 type Department = { id: string; name: string; code: string | null }
+
+type ResourceSummary = {
+  total_resources: number
+  resources_by_type: Record<string, number>
+}
 
 export type SearchFilters = {
   contentType: string
@@ -61,7 +67,7 @@ const TYPE_STYLE: Record<string, { icon: LucideIcon; className: string }> = {
   Midsem: { icon: FileText, className: 'st-tag-paper' },
   Endsem: { icon: FileCheck, className: 'st-tag-solution' },
   'Lab Test': { icon: ClipboardList, className: 'st-tag-assignment' },
-  Tutorials: { icon: CircleHelp, className: 'st-tag-quiz' },
+  Tutorials: { icon: BookOpen, className: 'st-tag-quiz' },
 }
 
 /* ------------------------------------------------------------- components -- */
@@ -318,6 +324,8 @@ export default function StudentSearch() {
   const [filters, setFilters] = useState<SearchFilters>(EMPTY_FILTERS)
   const [courses, setCourses] = useState<Course[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  const [summary, setSummary] = useState<ResourceSummary | null>(null)
+  const [summaryError, setSummaryError] = useState('')
   const [results, setResults] = useState<ResourceResult[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isSearching, setIsSearching] = useState(true)
@@ -335,6 +343,13 @@ export default function StudentSearch() {
     api<Department[]>('/api/departments')
       .then(setDepartments)
       .catch(() => setDepartments([]))
+
+    // Student-safe endpoint: returns counts of approved resources only.
+    api<ResourceSummary>('/api/resources/summary')
+      .then(setSummary)
+      .catch((error) => {
+        setSummaryError(error instanceof Error ? error.message : 'Could not load resource summary.')
+      })
   }, [])
 
   function setFilter(key: keyof SearchFilters, value: string) {
@@ -406,11 +421,44 @@ export default function StudentSearch() {
   const isFiltering = Boolean(appliedQuery) || Object.values(filters).some(Boolean)
 
   return (
-    <div className="st-page">
+    <div className="st-page st-search-page">
       <header>
         <h1>Search StudySync</h1>
         <p className="st-sub">Find the academic resource you need.</p>
       </header>
+
+      <section className="st-summary" aria-label="Available resource summary">
+        <div className="st-summary-heading">
+          <div>
+            <h2>Resource Summary</h2>
+            <p>Overview of published academic resources available on StudySync.</p>
+          </div>
+          {summaryError && <span className="st-summary-error" role="alert">{summaryError}</span>}
+        </div>
+        <div className="st-summary-grid">
+          <article className="st-summary-card st-summary-total">
+            <div className="st-summary-icon"><Files size={20} aria-hidden="true" /></div>
+            <div>
+              <strong>{summary ? summary.total_resources.toLocaleString('en-IN') : '—'}</strong>
+              <span>Total Resources</span>
+            </div>
+          </article>
+          {[
+            { label: 'Midsem', icon: FileText, className: 'st-summary-midsem' },
+            { label: 'Endsem', icon: FileCheck, className: 'st-summary-endsem' },
+            { label: 'Lab Test', icon: ClipboardList, className: 'st-summary-lab' },
+            { label: 'Tutorials', icon: BookOpen, className: 'st-summary-tutorials' },
+          ].map(({ label, icon: Icon, className }) => (
+            <article className={`st-summary-card ${className}`} key={label}>
+              <div className="st-summary-icon"><Icon size={20} aria-hidden="true" /></div>
+              <div>
+                <strong>{summary ? (summary.resources_by_type[label] ?? 0).toLocaleString('en-IN') : '—'}</strong>
+                <span>{label}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <form className="st-searchbar" onSubmit={handleSearch}>
         <div className="st-input">
