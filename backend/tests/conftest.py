@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app import supabase_client
 from app.main import app
 from app.routers import auth as auth_mod
-from app.services import google_drive
+from app.services import google_drive, storage
 from app.schemas import auth as auth_schema
 
 STUDENT = {"id": "u1", "email": "v@x.com", "full_name": "Vanshika", "entry_number": "2026CSM1038", "role": "student"}
@@ -103,6 +103,7 @@ def env(monkeypatch):
     db = {
         "profiles": [dict(STUDENT), dict(ADMIN)],
         "resource_submissions": [],
+        "resource_flags": [],
         "departments": [
             {"id": DEPT_CSE, "name": "Computer Science and Engineering", "code": "CSE"},
             {"id": DEPT_MATH, "name": "Mathematics", "code": "MATH"},
@@ -128,9 +129,20 @@ def env(monkeypatch):
     drive_delete = MagicMock()
     monkeypatch.setattr(google_drive, "upload_pdf_bytes_to_shared_drive", drive_upload)
     monkeypatch.setattr(google_drive, "delete_file_from_shared_drive", drive_delete)
+    # temporary Supabase Storage: an in-memory dict of path -> bytes
+    files = {}
+    monkeypatch.setattr(storage, "upload_pdf", lambda path, content: files.__setitem__(path, content))
+    monkeypatch.setattr(storage, "delete_file", lambda path: files.pop(path, None) is not None or True)
+
+    def _download(path):
+        from app.exceptions import NotFound
+        if path not in files:
+            raise NotFound("The temporary file could not be found.")
+        return files[path]
+    monkeypatch.setattr(storage, "download_pdf", _download)
     # tests use @x.com addresses, so switch the college-domain rule off (test_auth turns it on where needed)
     monkeypatch.setattr(auth_schema, "settings", NS(allowed_email_domains=[]))
-    return NS(admin=admin, anon=anon, db=db, state=state, drive_upload=drive_upload, drive_delete=drive_delete, client=TestClient(app))
+    return NS(admin=admin, anon=anon, db=db, state=state, drive_upload=drive_upload, drive_delete=drive_delete, files=files, client=TestClient(app))
 
 
 def as_user(env, user):

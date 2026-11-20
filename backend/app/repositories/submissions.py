@@ -117,11 +117,14 @@ def decide(
     reviewed_by: str,
     drive_file_id: str | None = None,
     rejection_reason: str | None = None,
+    course_id: str | None = None,
 ) -> SubmissionRow | None:
     """Approve or reject a request that is STILL pending.
 
-    The `status = 'pending'` condition is part of the update itself, so if two admins decide at the
-    same moment only one update matches. Returns None when nothing matched (already decided)."""
+    The `status = 'pending'` condition is part of the update itself, so if two admins decide at the same
+    moment only one update matches. Returns None when nothing matched (already decided).
+    Approving a new-course request passes the `course_id` of the course that was just created.
+    Raises DuplicateSubmission if the approved paper would clash with one already published."""
     changes = {
         "status": status,
         "reviewed_by": reviewed_by,
@@ -129,12 +132,72 @@ def decide(
         "drive_file_id": drive_file_id,
         "rejection_reason": rejection_reason,
     }
+    if course_id:
+        changes["course_id"] = str(course_id)
+    try:
+        rows = (
+            _table()
+            .update(changes)
+            .eq("id", str(submission_id))
+            .eq("status", "pending")
+            .execute()
+            .data
+        )
+    except APIError as exc:
+        if exc.json().get("code") == UNIQUE_VIOLATION:
+            raise DuplicateSubmission() from exc
+        raise
+    return SubmissionRow.model_validate(rows[0]) if rows else None
+
+
+def list_pending_new_course(course_code: str) -> list[SubmissionRow]:
+    """Pending requests that asked for a not-yet-existing course (course_id is empty for these)."""
+    rows = _table().select("*").eq("status", "pending").limit(500).execute().data
+    wanted = course_code.strip().upper()
+    return [
+        row for row in (SubmissionRow.model_validate(r) for r in rows)
+        if row.course_id is None and row.new_course and row.new_course.code.upper() == wanted
+    ]
+
+
+# ---- soft deletion of a published resource ------------------------------------------
+
+def soft_delete(submission_id: str, *, deleted_by: str, reason: str | None) -> SubmissionRow | None:
+    """Hide an approved resource. Nothing is erased: the row and its Drive file stay so it can be restored.
+    The `status = 'approved'` condition is part of the update, so it only matches a live, published resource."""
     rows = (
         _table()
-        .update(changes)
+        .update({
+            "status": "deleted",
+            "deleted_at": datetime.now(timezone.utc).isoformat(),
+            "deleted_by": deleted_by,
+            "deletion_reason": reason,
+        })
         .eq("id", str(submission_id))
-        .eq("status", "pending")
+        .eq("status", "approved")
         .execute()
         .data
     )
     return SubmissionRow.model_validate(rows[0]) if rows else None
+
+
+def restore(submission_id: str) -> SubmissionRow | None:
+    """Bring a soft-deleted resource back. Raises DuplicateSubmission if a replacement was uploaded meanwhile."""
+    try:
+        rows = (
+            _table()
+            .update({"status": "approved", "deleted_at": None, "deleted_by": None, "deletion_reason": None})
+            .eq("id", str(submission_id))
+            .eq("status", "deleted")
+            .execute()
+            .data
+        )
+    except APIError as exc:
+        if exc.json().get("code") == UNIQUE_VIOLATION:
+            raise DuplicateSubmission() from exc
+        raise
+    return SubmissionRow.model_validate(rows[0]) if rows else None
+
+
+def delete_row(submission_id: str) -> None:
+    _table().delete().eq("id", str(submission_id)).execute()

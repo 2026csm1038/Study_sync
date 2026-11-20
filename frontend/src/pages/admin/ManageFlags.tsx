@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, ChevronUp, GraduationCap, Trash2 } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp, EyeOff, GraduationCap, Trash2, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 
@@ -12,7 +12,14 @@ type Flag = {
   created_at: string
   /** 1 for a student's report, 5 for a professor's (set by the server). */
   weight: number
-  resource: { original_filename?: string; exam_year?: number; exam_type?: string }
+  resource: {
+    original_filename?: string
+    exam_year?: number
+    exam_type?: string
+    /** 'deleted' means an admin has removed (soft-deleted) it; students can no longer see it. */
+    status?: string
+    deletion_reason?: string | null
+  }
   reporter: { full_name?: string; email?: string; role?: string }
 }
 
@@ -24,6 +31,7 @@ type ResourceGroup = {
   /** Sum of the weights of the OPEN reports: this is the priority score. */
   score: number
   facultyFlagged: boolean
+  removed: boolean
   latest: string
 }
 
@@ -88,6 +96,7 @@ export default function ManageFlags() {
           openCount: 0,
           score: 0,
           facultyFlagged: false,
+          removed: flag.resource?.status === 'deleted',
           latest: '',
         }
         grouped.set(flag.resource_id, group)
@@ -121,16 +130,48 @@ export default function ManageFlags() {
     }
   }
 
+  /** Soft delete: hidden from students, but kept so it can be restored. */
   async function remove(group: ResourceGroup) {
     const filename = group.resource.original_filename ?? 'this resource'
-    if (!window.confirm(`Permanently delete “${filename}” from StudySync and Google Drive?`)) return
+    if (!window.confirm(`Remove “${filename}”?\n\nStudents will no longer see it. You can restore it later from this page.`)) return
+    const reason = window.prompt('Reason for removing it (optional):') ?? ''
     setBusy(group.resource_id)
     try {
-      await api(`/api/resource-flags/resources/${group.resource_id}`, { method: 'DELETE' })
+      await api(`/api/resource-flags/resources/${group.resource_id}`, {
+        method: 'DELETE',
+        body: reason.trim() ? { reason: reason.trim() } : undefined,
+      })
       if (expanded === group.resource_id) setExpanded(null)
       await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not delete resource.')
+      setError(e instanceof Error ? e.message : 'Could not remove the resource.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function restore(group: ResourceGroup) {
+    setBusy(group.resource_id)
+    try {
+      await api(`/api/resource-flags/resources/${group.resource_id}/restore`, { method: 'POST' })
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not restore the resource.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function deleteForever(group: ResourceGroup) {
+    const filename = group.resource.original_filename ?? 'this resource'
+    if (!window.confirm(`Permanently delete “${filename}” from StudySync and Google Drive? This cannot be undone.`)) return
+    setBusy(group.resource_id)
+    try {
+      await api(`/api/resource-flags/resources/${group.resource_id}/permanent`, { method: 'DELETE' })
+      if (expanded === group.resource_id) setExpanded(null)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not delete the resource.')
     } finally {
       setBusy(null)
     }
@@ -215,6 +256,11 @@ export default function ManageFlags() {
                       {group.openCount > 0 && (
                         <span className={`fl-badge fl-badge-${level}`}>{PRIORITY_LABEL[level]}</span>
                       )}
+                      {group.removed && (
+                        <span className="fl-badge fl-badge-removed">
+                          <EyeOff size={13} aria-hidden="true" /> Removed
+                        </span>
+                      )}
                       {group.facultyFlagged && (
                         <span className="fl-badge fl-badge-faculty">
                           <GraduationCap size={13} aria-hidden="true" /> Faculty flagged
@@ -230,6 +276,9 @@ export default function ManageFlags() {
                       <span aria-hidden="true"> · </span>
                       last reported {formatDate(group.latest)}
                     </p>
+                    {group.removed && group.resource.deletion_reason && (
+                      <p className="fl-meta">Removal reason: {group.resource.deletion_reason}</p>
+                    )}
                   </div>
 
                   <div className="fl-actions">
@@ -242,14 +291,35 @@ export default function ManageFlags() {
                       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       {isExpanded ? 'Hide reports' : 'View reports'}
                     </button>
-                    <button
-                      type="button"
-                      className="fl-btn fl-btn-danger"
-                      disabled={busy === group.resource_id}
-                      onClick={() => void remove(group)}
-                    >
-                      <Trash2 size={16} /> Delete
-                    </button>
+                    {group.removed ? (
+                      <>
+                        <button
+                          type="button"
+                          className="fl-btn"
+                          disabled={busy === group.resource_id}
+                          onClick={() => void restore(group)}
+                        >
+                          <Undo2 size={16} /> Restore
+                        </button>
+                        <button
+                          type="button"
+                          className="fl-btn fl-btn-danger"
+                          disabled={busy === group.resource_id}
+                          onClick={() => void deleteForever(group)}
+                        >
+                          <Trash2 size={16} /> Delete permanently
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="fl-btn fl-btn-danger"
+                        disabled={busy === group.resource_id}
+                        onClick={() => void remove(group)}
+                      >
+                        <Trash2 size={16} /> Remove
+                      </button>
+                    )}
                   </div>
                 </div>
 

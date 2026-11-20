@@ -131,33 +131,38 @@ def test_drive_failure_saves_nothing(env):
 
 # ------------------------------------------ automatic course/department ---
 
-def test_new_course_in_existing_department_is_created(env):
+def test_new_course_is_NOT_created_it_becomes_a_pending_request(env):
     r = upload(env, **typed())
     assert r.status_code == 201, r.text
-    [new] = [c for c in env.db["courses"] if c["course_code"] == "CSE301"]
-    assert new["course_name"] == "Compilers" and new["semester"] == 5 and new["department_id"] == DEPT_CSE
-    assert len(env.db["departments"]) == 2                       # CSE already existed
-    assert env.db["resource_submissions"][0]["course_id"] == new["id"]
+    body = r.json()
+    assert body["status"] == "pending" and body["course_id"] is None
+    assert body["new_course"]["code"] == "CSE301"
+    assert not [c for c in env.db["courses"] if c["course_code"] == "CSE301"]   # nothing created yet
+    assert len(env.db["departments"]) == 2
+    env.drive_upload.assert_not_called()                                         # nothing on Drive yet
+    [row] = env.db["resource_submissions"]
+    assert row["status"] == "pending" and row["drive_file_id"] is None
+    assert row["storage_path"] in env.files                                      # parked in temporary storage
 
 
-def test_new_department_is_created_with_a_short_code(env):
+def test_new_department_is_not_created_either(env):
     r = upload(env, **typed(course_code="PHY101", course_name="Mechanics", department="Physics"))
     assert r.status_code == 201, r.text
-    dept = env.db["departments"][-1]
-    assert dept["name"] == "Physics" and dept["code"] == "PHYS"
-    assert env.db["courses"][-1]["department_id"] == dept["id"]
+    assert len(env.db["departments"]) == 2
+    assert r.json()["new_course"]["department"] == "Physics"
 
 
-def test_department_typed_as_code_or_in_other_case_matches_the_existing_one(env):
-    for i, name in enumerate(["cse", "COMPUTER SCIENCE AND ENGINEERING", "  computer   science and engineering "]):
-        r = upload(env, content=make_pdf(f"p{i}"), **typed(course_code=f"CSE4{i}0", department=name))
-        assert r.status_code == 201, r.text
-    assert len(env.db["departments"]) == 2                       # no duplicates were made
+def test_second_request_for_the_same_new_paper_is_rejected(env):
+    assert upload(env, **typed()).status_code == 201
+    r = upload(env, content=make_pdf("other"), **typed())
+    assert r.status_code == 409 and "waiting for admin approval" in r.json()["detail"]
 
 
-def test_long_department_name_gets_initials_as_code(env):
-    upload(env, **typed(department="Electrical Engineering"))
-    assert env.db["departments"][-1]["code"] == "EE"
+def test_pending_request_is_cleaned_up_if_saving_it_fails(env):
+    env.state.fail_next = APIError({"code": "XX000", "message": "boom"})
+    with pytest.raises(APIError):
+        upload(env, **typed())
+    assert env.files == {} and env.db["resource_submissions"] == []
 
 
 def test_typing_an_existing_course_code_reuses_that_course(env):
@@ -178,25 +183,6 @@ def test_nothing_is_created_when_the_upload_is_rejected(env):
     r = upload(env, content=b"not a pdf", **typed(department="Physics"))
     assert r.status_code == 415
     assert len(env.db["courses"]) == 4 and len(env.db["departments"]) == 2
-
-
-def test_new_course_and_department_are_removed_if_saving_the_upload_fails(env):
-    # the first write is the new department; fail the SUBMISSION insert by letting two writes pass
-    real = env.admin.table.side_effect
-    calls = {"n": 0}
-
-    def table(name):
-        if name == "resource_submissions":
-            calls["n"] += 1
-            env.state.fail_next = APIError({"code": "XX000", "message": "boom"})
-        return real(name)
-
-    env.admin.table.side_effect = table
-    with pytest.raises(APIError):
-        upload(env, **typed(course_code="PHY101", course_name="Mechanics", department="Physics"))
-    assert [c["course_code"] for c in env.db["courses"]].count("PHY101") == 0
-    assert len(env.db["departments"]) == 2
-    env.drive_delete.assert_called_once_with("DRIVE-1")
 
 
 @pytest.mark.parametrize("missing", ["course_code", "course_name", "department", "semester"])

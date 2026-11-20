@@ -131,3 +131,4 @@
 .ad-error { border: 1px solid #f4c4c4; border-radius: 10px; }
 .ad-donut::after { inset: 36px; }
 .ad-legend li { padding: 2px 0; }
+.fl-badge-removed { background: #eceef3; color: #4b5565; }

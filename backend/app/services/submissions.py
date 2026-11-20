@@ -3,6 +3,7 @@ import hashlib
 import re
 from io import BytesIO
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import UploadFile
 from pypdf import PdfReader
@@ -12,8 +13,8 @@ from ..exceptions import BadRequest, Conflict, PayloadTooLarge, UnsupportedMedia
 from ..repositories import courses, departments, submissions
 from ..schemas.course import CourseOut
 from ..schemas.department import DepartmentOut
-from ..schemas.submission import SubmissionCreate, SubmissionInsert, SubmissionOut, SubmissionRow
-from . import catalog, google_drive
+from ..schemas.submission import NewCourse, SubmissionCreate, SubmissionInsert, SubmissionOut, SubmissionRow
+from . import google_drive, storage
 
 MAX_BYTES = 2 * 1024 * 1024  # keep in sync with the student upload UI
 
@@ -57,6 +58,7 @@ def _duplicate_reason(
     exam_type: str,
     exam_year: int,
     sha256: str,
+    new_course_code: str | None = None,
 ) -> str | None:
     """Why this upload is a duplicate, or None if it is fine."""
     # Midsem and Endsem: only one paper per course, year and exam type. A brand-new course
@@ -66,6 +68,12 @@ def _duplicate_reason(
             label = _label(course, exam_type, exam_year)
             return f"A paper for {label} is already available on StudySync."
 
+    # A request for a not-yet-existing course may already be waiting for the same paper.
+    if course is None and new_course_code and exam_type in ("Midsem", "Endsem"):
+        for waiting in submissions.list_pending_new_course(new_course_code):
+            if waiting.exam_year == exam_year and waiting.exam_type == exam_type:
+                return f"A request for {new_course_code} · {exam_type} {exam_year} is already waiting for admin approval."
+
     # Any exam type: the exact same PDF can't be uploaded twice, whatever details it comes with.
     if submissions.find_live_by_hash(sha256):
         return "This exact PDF has already been uploaded to StudySync."
@@ -74,7 +82,7 @@ def _duplicate_reason(
 
 
 def _undo_catalog(course: CourseOut | None, created_course: bool, dept: DepartmentOut | None) -> None:
-    """Remove a course/department that this upload created, if the upload then failed.
+    """Remove a course/department that an approval created, if the approval then failed.
     Best effort: if somebody else has started using them meanwhile, the delete is refused and they stay."""
     try:
         if created_course and course:
@@ -86,37 +94,32 @@ def _undo_catalog(course: CourseOut | None, created_course: bool, dept: Departme
 
 
 def submit_paper(user: CurrentUser, data: SubmissionCreate, file: UploadFile) -> SubmissionOut:
+    """Two routes, depending on whether the course already exists:
+
+    existing course  -> straight to the shared Google Drive and published at once (status 'approved')
+    new course/dept  -> NOTHING is created yet. The PDF waits in temporary Supabase Storage and a
+                        'pending' request goes to the admin's Manage Requests. Approval (services/review.py)
+                        is what creates the course/department and moves the PDF to Drive.
+    """
     content = read_pdf(file)
 
-    # An existing course (picked, or typed with a code that already exists). Nothing is created yet:
-    # we only create a new course/department once the PDF has passed every check and is on Drive,
-    # so a rejected or failed upload leaves no stray courses behind.
     course = courses.get_course(data.course_id) if data.course_id else courses.find_by_code(data.course_code)
     if course is not None and not course.is_active:
         raise BadRequest("This course is not accepting uploads.")
 
     sha256 = hashlib.sha256(content).hexdigest()
-    reason = _duplicate_reason(course, data.exam_type, data.exam_year, sha256)
+    reason = _duplicate_reason(course, data.exam_type, data.exam_year, sha256, data.course_code)
     if reason:
         raise Conflict(reason)
 
     filename = _safe_filename(file.filename)
-    label_course = course.course_code if course else data.course_code
-    drive_name = f"{label_course} · {data.exam_type} {data.exam_year} - {filename}"
+    if course is None:
+        return _submit_for_review(user, data, content, filename, sha256)
+
+    drive_name = f"{course.course_code} · {data.exam_type} {data.exam_year} - {filename}"
     uploaded = google_drive.upload_pdf_bytes_to_shared_drive(content, drive_name)
     drive_file_id = uploaded["file_id"]
-
-    created_course, new_dept = False, None
     try:
-        if course is None:
-            course, created_course, new_dept = catalog.get_or_create_course(
-                code=data.course_code,
-                name=data.course_name,
-                department=data.department,
-                semester=data.semester,
-            )
-            if not course.is_active:
-                raise BadRequest("This course is not accepting uploads.")
         row = submissions.create(SubmissionInsert(
             course_id=course.id,
             exam_year=data.exam_year,
@@ -132,15 +135,42 @@ def submit_paper(user: CurrentUser, data: SubmissionCreate, file: UploadFile) ->
         ))
     except submissions.DuplicateSubmission as exc:
         google_drive.delete_file_from_shared_drive(drive_file_id)
-        _undo_catalog(course, created_course, new_dept)
-        raise Conflict(_duplicate_reason(course, data.exam_type, data.exam_year, sha256) or
+        raise Conflict(_duplicate_reason(course, data.exam_type, data.exam_year, sha256, data.course_code) or
                        "This paper was just uploaded by someone else.") from exc
     except Exception:
         # Compensate for a successful Drive upload if saving the details fails.
         google_drive.delete_file_from_shared_drive(drive_file_id)
-        _undo_catalog(course, created_course, new_dept)
         raise
 
+    return to_out(row)
+
+
+def _submit_for_review(user: CurrentUser, data: SubmissionCreate, content: bytes, filename: str, sha256: str) -> SubmissionOut:
+    """Park the PDF in temporary storage and create a pending request for a new course/department."""
+    path = f"{user.id}/{uuid4()}.pdf"
+    storage.upload_pdf(path, content)
+    try:
+        row = submissions.create(SubmissionInsert(
+            course_id=None,
+            new_course=NewCourse(code=data.course_code, name=data.course_name,
+                                 department=data.department, semester=data.semester),
+            exam_year=data.exam_year,
+            exam_type=data.exam_type,
+            tags=data.tags,
+            original_filename=filename,
+            storage_path=path,
+            file_size_bytes=len(content),
+            file_sha256=sha256,
+            uploaded_by=user.id,
+            status="pending",
+            drive_file_id=None,
+        ))
+    except submissions.DuplicateSubmission as exc:
+        storage.delete_file(path)
+        raise Conflict("This exact PDF has already been uploaded to StudySync.") from exc
+    except Exception:
+        storage.delete_file(path)
+        raise
     return to_out(row)
 
 
