@@ -13,6 +13,7 @@ from .routers import resource_filters as resource_filters_router
 from .routers import departments as departments_router
 from .routers import admin_dashboard as admin_dashboard_router
 from .routers import resource_flags as resource_flags_router
+from .routers import admin_submissions as admin_submissions_router
 
 app = FastAPI(
     title="StudySync API",
@@ -42,6 +43,7 @@ app.include_router(resource_filters_router.router)
 app.include_router(departments_router.router)
 app.include_router(admin_dashboard_router.router)
 app.include_router(resource_flags_router.router)
+app.include_router(admin_submissions_router.router)
 
 @app.get("/api/health")
 def health():

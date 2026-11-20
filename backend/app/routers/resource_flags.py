@@ -7,8 +7,9 @@ from pydantic import BaseModel, Field
 
 from ..deps import CurrentUser, get_current_user, require_admin
 from ..exceptions import Conflict, NotFound
+from ..repositories import courses, submissions
 from ..supabase_client import admin
-from ..services.google_drive import delete_file_from_shared_drive
+from ..services import google_drive
 
 router = APIRouter(prefix="/api/resource-flags", tags=["resource flags"])
 # How much one report counts towards a resource's priority. A report from a professor / faculty
@@ -55,7 +56,7 @@ def flag_resource(resource_id: UUID, body: FlagCreate, user: CurrentUser = Depen
 @router.get("", dependencies=[Depends(require_admin)])
 def list_flags(status: Literal["open", "resolved", "dismissed"] | None = None):
     query = admin().table("resource_flags").select(
-        "id,resource_id,reporter_id,reason,details,status,created_at,resource_submissions(original_filename,course_id,exam_year,exam_type)"
+        "id,resource_id,reporter_id,reason,details,status,created_at,resource_submissions(original_filename,course_id,exam_year,exam_type,status,deletion_reason)"
     ).order("created_at", desc=True)
     if status:
         query = query.eq("status", status)
@@ -84,16 +85,69 @@ def update_flag(flag_id: UUID, body: FlagStatusUpdate, _admin: CurrentUser = Dep
     return rows[0]
 
 
-@router.delete("/resources/{resource_id}", status_code=204)
-def remove_flagged_resource(resource_id: UUID, _admin: CurrentUser = Depends(require_admin)):
-    db = admin()
-    rows = (db.table("resource_submissions").select("id,drive_file_id")
+class RemoveRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=300)
+
+
+def _resource_row(resource_id: UUID) -> dict:
+    rows = (admin().table("resource_submissions").select("id,status,drive_file_id")
             .eq("id", str(resource_id)).limit(1).execute().data or [])
     if not rows:
         raise NotFound("Resource not found.")
-    file_id = rows[0].get("drive_file_id")
-    if file_id:
-        delete_file_from_shared_drive(file_id)
-    db.table("resource_flags").delete().eq("resource_id", str(resource_id)).execute()
-    db.table("resource_submissions").delete().eq("id", str(resource_id)).execute()
+    return rows[0]
+
+
+@router.get("/resources/removed", dependencies=[Depends(require_admin)])
+def list_removed_resources():
+    """Soft-deleted resources, newest removal first, so an admin can restore them."""
+    rows = [r for r in submissions.list_by_status("deleted", 200)]
+    codes = courses.get_many([r.course_id for r in rows if r.course_id])
+    return [
+        {
+            "id": r.id, "original_filename": r.original_filename, "exam_year": r.exam_year,
+            "exam_type": r.exam_type, "deleted_at": r.deleted_at, "deletion_reason": r.deletion_reason,
+            "course_code": codes[r.course_id].course_code if r.course_id in codes else None,
+        }
+        for r in rows
+    ]
+
+
+@router.delete("/resources/{resource_id}")
+def remove_flagged_resource(
+    resource_id: UUID, body: RemoveRequest | None = None, current: CurrentUser = Depends(require_admin)
+):
+    """SOFT delete: the resource disappears for students (search, filters, view, flagging) but its row
+    and Drive file are kept, so it can be restored. Its open reports are marked resolved."""
+    _resource_row(resource_id)
+    reason = ((body.reason if body else None) or "").strip() or None
+    removed = submissions.soft_delete(str(resource_id), deleted_by=current.id, reason=reason)
+    if removed is None:
+        raise Conflict("This resource is not published, so it can't be removed.")
+    (admin().table("resource_flags").update({"status": "resolved"})
+     .eq("resource_id", str(resource_id)).eq("status", "open").execute())
+    return {"id": str(resource_id), "status": "deleted"}
+
+
+@router.post("/resources/{resource_id}/restore")
+def restore_resource(resource_id: UUID, _admin: CurrentUser = Depends(require_admin)):
+    _resource_row(resource_id)
+    try:
+        restored = submissions.restore(str(resource_id))
+    except submissions.DuplicateSubmission as exc:
+        raise Conflict("A replacement for this paper has been published since, so it can't be restored.") from exc
+    if restored is None:
+        raise Conflict("This resource is not in the removed list.")
+    return {"id": str(resource_id), "status": "approved"}
+
+
+@router.delete("/resources/{resource_id}/permanent", status_code=204)
+def permanently_delete_resource(resource_id: UUID, _admin: CurrentUser = Depends(require_admin)):
+    """Final removal, only for a resource that was soft-deleted first: erases the Drive file and the row."""
+    row = _resource_row(resource_id)
+    if row["status"] != "deleted":
+        raise Conflict("Remove the resource first; only removed resources can be deleted permanently.")
+    if row.get("drive_file_id"):
+        google_drive.delete_file_from_shared_drive(row["drive_file_id"])
+    admin().table("resource_flags").delete().eq("resource_id", str(resource_id)).execute()
+    submissions.delete_row(str(resource_id))
     return None

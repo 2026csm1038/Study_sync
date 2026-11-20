@@ -7,6 +7,17 @@ import '../../upload.css'
 
 type Course = { id: string; course_code: string; course_name: string }
 
+type Mine = {
+  id: string
+  course_id: string | null
+  new_course: { code: string; name: string } | null
+  exam_type: string
+  exam_year: number
+  original_filename: string
+  status: 'pending' | 'approved' | 'rejected' | 'deleted'
+  rejection_reason: string | null
+}
+
 type Department = { id: string; name: string; code: string | null }
 
 /** Value of the course dropdown that means "type a new course instead". */
@@ -64,6 +75,9 @@ export default function UploadPdf() {
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showToast, setShowToast] = useState(false)
+  // true when the upload needed a new course/department and was sent to the admin instead of being published
+  const [sentForReview, setSentForReview] = useState(false)
+  const [mine, setMine] = useState<Mine[]>([])
   const [notice, setNotice] = useState('')
   const [rejection, setRejection] = useState('')
 
@@ -77,6 +91,9 @@ export default function UploadPdf() {
       .then(setDepartments)
       .catch(() => setDepartments([]))
   }, [])
+
+  const loadMine = () => api<Mine[]>('/api/submissions/mine').then(setMine).catch(() => undefined)
+  useEffect(() => { void loadMine() }, [])
 
   useEffect(() => {
     if (!showToast) return
@@ -134,7 +151,7 @@ export default function UploadPdf() {
   }
 
   /** Sends the PDF + details (multipart). Throws an ApiError carrying the server's reason if it is rejected. */
-  async function submitResource(pdf: File) {
+  async function submitResource(pdf: File): Promise<{ status: string }> {
     const data = new FormData()
     data.append('file', pdf)
     if (form.courseId === NEW_COURSE) {
@@ -149,7 +166,7 @@ export default function UploadPdf() {
     data.append('exam_year', form.year)
     data.append('exam_type', form.examType)
     if (form.tags.trim()) data.append('tags', form.tags.trim())
-    await api('/api/submissions', { method: 'POST', body: data })
+    return api<{ status: string }>('/api/submissions', { method: 'POST', body: data })
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -159,13 +176,10 @@ export default function UploadPdf() {
     if (!validate() || !file) return
     setSubmitting(true)
     try {
-      await submitResource(file)
+      const saved = await submitResource(file)
+      setSentForReview(saved.status === 'pending')
+      void loadMine()
       setShowToast(true)
-      if (form.courseId === NEW_COURSE) {
-        // refresh so the course that was just added shows up in the list
-        api<Course[]>('/api/courses').then(setCourses).catch(() => undefined)
-        api<Department[]>('/api/departments').then(setDepartments).catch(() => undefined)
-      }
       setForm(EMPTY_FORM)
       removeFile()
     } catch (err) {
@@ -186,15 +200,19 @@ export default function UploadPdf() {
         <div className="up-toast" role="status">
           <CircleCheck size={22} aria-hidden="true" />
           <div>
-            <strong>Paper uploaded successfully</strong>
-            <span>Your PDF is now available in StudySync.</span>
+            <strong>{sentForReview ? 'Sent for admin approval' : 'Paper uploaded successfully'}</strong>
+            <span>
+              {sentForReview
+                ? 'The new course or department will be added once an admin approves it. You can follow it under Your uploads below.'
+                : 'Your PDF is now available in StudySync.'}
+            </span>
           </div>
         </div>
       )}
 
       <header>
         <h1>Upload Previous Year Paper</h1>
-        <p className="st-sub">Upload a PDF directly to StudySync. It becomes available as soon as the upload succeeds.</p>
+        <p className="st-sub">Upload a PDF to StudySync. For an existing course it is available straight away; a new course or department is sent to an admin for approval first.</p>
       </header>
 
       <form className="up-card" onSubmit={handleSubmit} noValidate>
@@ -242,7 +260,7 @@ export default function UploadPdf() {
                   {c.course_code} · {c.course_name}
                 </option>
               ))}
-              <option value={NEW_COURSE}>+ My course isn't listed</option>
+              <option value={NEW_COURSE}>+ My course isn't listed (needs admin approval)</option>
             </select>
             {errors.courseId && <em className="up-error">{errors.courseId}</em>}
           </label>
@@ -351,6 +369,28 @@ export default function UploadPdf() {
           </button>
         </div>
       </form>
+
+      {mine.length > 0 && (
+        <section className="up-card up-mine" aria-label="Your uploads">
+          <h2>Your uploads</h2>
+          <ul>
+            {mine.filter((m) => m.status !== 'deleted').map((m) => {
+              const code = m.new_course?.code ?? courses.find((c) => c.id === m.course_id)?.course_code ?? 'Course'
+              const label = { pending: 'Waiting for admin approval', approved: 'Published', rejected: 'Rejected' }[m.status as 'pending' | 'approved' | 'rejected']
+              return (
+                <li key={m.id}>
+                  <div>
+                    <strong>{code} · {m.exam_type} {m.exam_year}</strong>
+                    <span>{m.original_filename}</span>
+                    {m.status === 'rejected' && m.rejection_reason && <em>Reason: {m.rejection_reason}</em>}
+                  </div>
+                  <span className={`up-pill up-pill-${m.status}`}>{label}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }

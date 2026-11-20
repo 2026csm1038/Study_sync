@@ -8,7 +8,7 @@ from .course import _clean_code
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 ExamType = Literal["Midsem", "Endsem", "Lab Test", "Tutorials"]
-SubmissionStatus = Literal["pending", "approved", "rejected"]
+SubmissionStatus = Literal["pending", "approved", "rejected", "deleted"]
 FIRST_YEAR = 2000
 
 
@@ -73,9 +73,19 @@ class SubmissionCreate(BaseModel):
         return v or None
 
 
+class NewCourse(BaseModel):
+    """The course (and department) a student typed that does not exist yet. It is only stored on a
+    pending request; the admin's approval is what actually creates it."""
+    code: str
+    name: str
+    department: str
+    semester: int
+
+
 class SubmissionRow(BaseModel):
     id: str
-    course_id: str
+    course_id: str | None = None   # None while a request for a brand-new course is waiting for review
+    new_course: NewCourse | None = None
     exam_year: int
     exam_type: ExamType
     tags: str | None = None
@@ -90,11 +100,19 @@ class SubmissionRow(BaseModel):
     reviewed_at: datetime | None = None
     drive_file_id: str | None = None
     created_at: datetime | None = None
+    deleted_at: datetime | None = None
+    deleted_by: str | None = None
+    deletion_reason: str | None = None
 
 
 class SubmissionInsert(BaseModel):
-    """Metadata written after the PDF has been uploaded directly to Google Drive."""
-    course_id: UUID
+    """Metadata for a new upload.
+
+    Existing course: the PDF is already on Google Drive, so status is 'approved' and `drive_file_id` is set.
+    New course/department: the PDF is in temporary Storage (`storage_path`), status is 'pending',
+    `course_id` is empty and `new_course` holds what the student typed."""
+    course_id: UUID | None = None
+    new_course: NewCourse | None = None
     exam_year: int
     exam_type: ExamType
     tags: str | None
@@ -104,12 +122,13 @@ class SubmissionInsert(BaseModel):
     file_sha256: str
     uploaded_by: str
     status: SubmissionStatus = "approved"
-    drive_file_id: str
+    drive_file_id: str | None = None
 
 
 class SubmissionOut(BaseModel):
     id: str
-    course_id: str
+    course_id: str | None = None
+    new_course: NewCourse | None = None
     exam_year: int
     exam_type: ExamType
     tags: str | None = None
