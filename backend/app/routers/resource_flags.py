@@ -53,6 +53,26 @@ def flag_resource(resource_id: UUID, body: FlagCreate, user: CurrentUser = Depen
     return {"id": row["id"], "status": row["status"], "message": "Resource reported. Thank you for helping keep StudySync reliable."}
 
 
+@router.get("/mine")
+def my_flags(user: CurrentUser = Depends(get_current_user)):
+    """Only the reports made by the logged-in student (read-only)."""
+    rows = (admin().table("resource_flags")
+            .select("id,reason,details,status,created_at,resource_submissions(original_filename,course_id,exam_year,exam_type,tags)")
+            .eq("reporter_id", user.id).order("created_at", desc=True).execute().data or [])
+    resources = [r.get("resource_submissions") or {} for r in rows]
+    codes = courses.get_many([r["course_id"] for r in resources if r.get("course_id")])
+    return [
+        {
+            "id": f["id"], "reason": f["reason"], "details": f.get("details"), "status": f["status"],
+            "created_at": f["created_at"],
+            "original_filename": r.get("original_filename"), "exam_year": r.get("exam_year"),
+            "exam_type": r.get("exam_type"), "tags": r.get("tags"),
+            "course_code": codes[r["course_id"]].course_code if r.get("course_id") in codes else None,
+        }
+        for f, r in zip(rows, resources)
+    ]
+
+
 @router.get("", dependencies=[Depends(require_admin)])
 def list_flags(status: Literal["open", "resolved", "dismissed"] | None = None):
     query = admin().table("resource_flags").select(
