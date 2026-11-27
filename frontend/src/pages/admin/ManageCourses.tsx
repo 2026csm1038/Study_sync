@@ -22,6 +22,11 @@ type Course = {
   is_active: boolean
   created_at: string | null
   updated_at: string | null
+  /** From GET /api/courses/admin/overview */
+  resource_count: number
+  pending_count: number
+  removed_count: number
+  can_delete: boolean
 }
 
 type Department = {
@@ -66,6 +71,8 @@ export default function ManageCourses() {
   const [departmentFilter, setDepartmentFilter] = useState('')
   const [semesterFilter, setSemesterFilter] = useState('')
   const [toast, setToast] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -74,9 +81,9 @@ export default function ManageCourses() {
       setLoading(true)
       setError('')
       try {
-        // Existing read-only endpoints. include_inactive=true is permitted for admins.
+        // Admin overview: every course (inactive too) with its paper counts.
         const [courseRows, departmentRows] = await Promise.all([
-          api<Course[]>('/api/courses?include_inactive=true'),
+          api<Course[]>('/api/courses/admin/overview'),
           api<Department[]>('/api/departments'),
         ])
         if (!cancelled) {
@@ -124,11 +131,13 @@ export default function ManageCourses() {
   }
 
   function openAdd() {
+    setFormError('')
     setForm(EMPTY_FORM)
     setModal({ type: 'add' })
   }
 
   function openEdit(course: Course) {
+    setFormError('')
     setForm({
       course_code: course.course_code,
       course_name: course.course_name,
@@ -141,48 +150,59 @@ export default function ManageCourses() {
 
   function closeModal() {
     setModal(null)
+    setFormError('')
   }
 
-  // UI-only: Add/Edit/Delete do not call the backend and do not persist to Supabase.
-  function saveCourse(event: FormEvent<HTMLFormElement>) {
+  function openDelete(course: Course) {
+    setFormError('')
+    setModal({ type: 'delete', course })
+  }
+
+  async function saveCourse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (modal?.type === 'add') {
-      const nextCourse: Course = {
-        id: `ui-${Date.now()}`,
-        course_code: form.course_code.trim().toUpperCase(),
-        course_name: form.course_name.trim(),
-        department_id: form.department_id,
-        semester: Number(form.semester),
-        description: null,
-        is_active: form.is_active,
-        created_at: null,
-        updated_at: null,
-      }
-      setCourses((current) => [...current, nextCourse])
-      notify('Course added')
-    } else if (modal?.type === 'edit') {
-      setCourses((current) => current.map((course) =>
-        course.id === modal.course.id
-          ? {
-              ...course,
-              course_code: form.course_code.trim().toUpperCase(),
-              course_name: form.course_name.trim(),
-              department_id: form.department_id,
-              semester: Number(form.semester),
-              is_active: form.is_active,
-            }
-          : course,
-      ))
-      notify('Course updated')
+    if (!modal || modal.type === 'delete') return
+    setSaving(true)
+    setFormError('')
+    const body = {
+      course_code: form.course_code.trim(),
+      course_name: form.course_name.trim(),
+      department_id: form.department_id,
+      semester: Number(form.semester),
+      is_active: form.is_active,
     }
-    closeModal()
+    try {
+      if (modal.type === 'add') {
+        const created = await api<Course>('/api/courses', { method: 'POST', body })
+        setCourses((current) => [...current, { ...created, resource_count: 0, pending_count: 0, removed_count: 0, can_delete: true }])
+        notify('Course added')
+      } else {
+        const updated = await api<Course>(`/api/courses/${modal.course.id}`, { method: 'PATCH', body })
+        // the PATCH response has no paper counts, so keep the ones we already had
+        setCourses((current) => current.map((course) => (course.id === updated.id ? { ...course, ...updated } : course)))
+        notify('Course updated')
+      }
+      closeModal()
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Could not save the course. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function deleteCourse() {
+  async function deleteCourse() {
     if (modal?.type !== 'delete') return
-    setCourses((current) => current.filter((course) => course.id !== modal.course.id))
-    notify('Course removed')
-    closeModal()
+    setSaving(true)
+    setFormError('')
+    try {
+      await api(`/api/courses/${modal.course.id}`, { method: 'DELETE' })
+      setCourses((current) => current.filter((course) => course.id !== modal.course.id))
+      notify('Course removed')
+      closeModal()
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Could not delete the course. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -280,6 +300,7 @@ export default function ManageCourses() {
                   <th>Course Name</th>
                   <th>Department</th>
                   <th>Semester</th>
+                  <th>Papers</th>
                   <th>Status</th>
                   <th className="mc-actions-heading">Actions</th>
                 </tr>
@@ -291,6 +312,7 @@ export default function ManageCourses() {
                     <td><strong className="mc-course-name">{course.course_name}</strong></td>
                     <td>{departmentById.get(course.department_id)?.code ?? departmentById.get(course.department_id)?.name ?? '—'}</td>
                     <td>{course.semester}</td>
+                    <td>{course.resource_count}{course.pending_count ? ` (+${course.pending_count} pending)` : ''}</td>
                     <td>
                       <span className={`mc-status ${course.is_active ? 'mc-status-active' : 'mc-status-inactive'}`}>
                         {course.is_active ? 'Active' : 'Inactive'}
@@ -302,7 +324,7 @@ export default function ManageCourses() {
                           <Pencil size={15} aria-hidden="true" />
                           <span>Edit</span>
                         </button>
-                        <button type="button" className="mc-icon-action mc-delete-action" onClick={() => setModal({ type: 'delete', course })} aria-label={`Delete ${course.course_code}`} title="Delete course">
+                        <button type="button" className="mc-icon-action mc-delete-action" onClick={() => openDelete(course)} aria-label={`Delete ${course.course_code}`} title="Delete course">
                           <Trash2 size={15} aria-hidden="true" />
                           <span>Delete</span>
                         </button>
@@ -326,9 +348,17 @@ export default function ManageCourses() {
               <button type="button" className="mc-dialog-close" onClick={closeModal} aria-label="Close dialog"><X size={19} /></button>
               <h2 id="mc-delete-title">Delete course?</h2>
               <p>Are you sure you want to delete <strong>{modal.course.course_code} — {modal.course.course_name}</strong>? This action cannot be undone.</p>
+              {!modal.course.can_delete && (
+                <p className="mc-form-error" role="alert">
+                  This course has {modal.course.resource_count + modal.course.pending_count} published or pending paper(s)
+                  {modal.course.removed_count ? ` and ${modal.course.removed_count} removed paper(s)` : ''}, so it can't be deleted.
+                  Set it to Inactive instead (Edit).
+                </p>
+              )}
+              {formError && <p className="mc-form-error" role="alert">{formError}</p>}
               <div className="mc-dialog-actions">
                 <button type="button" className="mc-modal-button mc-modal-secondary" onClick={closeModal}>Cancel</button>
-                <button type="button" className="mc-modal-button mc-modal-danger" onClick={deleteCourse}>
+                <button type="button" className="mc-modal-button mc-modal-danger" disabled={saving || !modal.course.can_delete} onClick={() => void deleteCourse()}>
                   <Trash2 size={16} aria-hidden="true" /> Delete Course
                 </button>
               </div>
@@ -381,11 +411,12 @@ export default function ManageCourses() {
                     <strong>{form.is_active ? 'Active' : 'Inactive'}</strong>
                   </label>
                 </div>
+                {formError && <p className="mc-form-error" role="alert">{formError}</p>}
                 <div className="mc-dialog-actions">
                   <button type="button" className="mc-modal-button mc-modal-secondary" onClick={closeModal}>Cancel</button>
-                  <button type="submit" className="mc-modal-button mc-modal-primary">
+                  <button type="submit" className="mc-modal-button mc-modal-primary" disabled={saving}>
                     {modal.type === 'add' ? <Plus size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}
-                    {modal.type === 'add' ? 'Add Course' : 'Save Changes'}
+                    {saving ? 'Saving…' : modal.type === 'add' ? 'Add Course' : 'Save Changes'}
                   </button>
                 </div>
               </form>

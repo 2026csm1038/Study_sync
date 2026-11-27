@@ -276,3 +276,5 @@
   box-sizing: border-box;
   justify-self: stretch;
 }
+.mc-form-error { margin: 0 0 12px; padding: 10px 14px; background: #fdeeee; border: 1px solid #f3c4c4; border-radius: 10px; color: #a12a2a; font-size: 13px; line-height: 1.45; }
+.mc-modal-button:disabled { opacity: .55; cursor: not-allowed; }

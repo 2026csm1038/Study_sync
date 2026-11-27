@@ -1,8 +1,10 @@
 """Tests for /api/courses. They also show what the Pydantic schemas protect you from."""
+from uuid import uuid4
+
 import pytest
 from postgrest.exceptions import APIError
 
-from .conftest import ADMIN, DEPT_CSE, DEPT_MATH, STUDENT, as_user
+from .conftest import ADMIN, DEPT_CSE, DEPT_MATH, STUDENT, as_user, make_course
 
 NEW_COURSE = {"course_code": " cse305 ", "course_name": "  Computer Networks ", "department_id": DEPT_CSE, "semester": 5}
 
@@ -123,7 +125,77 @@ def test_delete(env):
     assert env.client.delete(f"/api/courses/{course_id}", headers=as_user(env, ADMIN)).status_code == 404
 
 
-def test_cannot_delete_course_that_still_has_resources(env):
+def attach(env, course, status, n=1):
+    for _ in range(n):
+        env.db["resource_submissions"].append({"id": str(uuid4()), "course_id": course["id"], "status": status})
+
+
+def test_cannot_delete_course_with_published_or_pending_papers(env):
+    course = env.db["courses"][0]
+    attach(env, course, "approved", 2)
+    attach(env, course, "pending")
+    r = env.client.delete(f"/api/courses/{course['id']}", headers=as_user(env, ADMIN))
+    assert r.status_code == 409 and "3 published or pending" in r.json()["detail"] and "Deactivate" in r.json()["detail"]
+    assert course in env.db["courses"]
+
+
+def test_cannot_delete_course_with_removed_papers(env):
+    course = env.db["courses"][0]
+    attach(env, course, "deleted")
+    r = env.client.delete(f"/api/courses/{course['id']}", headers=as_user(env, ADMIN))
+    assert r.status_code == 409 and "removed paper" in r.json()["detail"]
+
+
+def test_rejected_uploads_are_cleared_with_the_course(env):
+    course = env.db["courses"][0]
+    attach(env, course, "rejected", 2)
+    assert env.client.delete(f"/api/courses/{course['id']}", headers=as_user(env, ADMIN)).status_code == 204
+    assert env.db["resource_submissions"] == [] and course not in env.db["courses"]
+
+
+def test_database_foreign_key_is_still_a_friendly_conflict(env, monkeypatch):
+    monkeypatch.setattr("app.services.course_admin.submissions.delete_rejected_for_course", lambda _id: None)
     env.state.fail_next = APIError({"code": "23503", "message": "foreign key"})
     r = env.client.delete(f"/api/courses/{env.db['courses'][0]['id']}", headers=as_user(env, ADMIN))
     assert r.status_code == 409 and "Deactivate" in r.json()["detail"]
+
+
+def test_admin_overview_counts_and_deletable_flag(env):
+    busy, idle = env.db["courses"][0], env.db["courses"][1]
+    attach(env, busy, "approved", 2)
+    attach(env, busy, "pending")
+    attach(env, busy, "deleted")
+    attach(env, idle, "rejected")
+    r = env.client.get("/api/courses/admin/overview", headers=as_user(env, ADMIN))
+    assert r.status_code == 200
+    by_id = {c["id"]: c for c in r.json()}
+    assert (by_id[busy["id"]]["resource_count"], by_id[busy["id"]]["pending_count"],
+            by_id[busy["id"]]["removed_count"], by_id[busy["id"]]["can_delete"]) == (2, 1, 1, False)
+    assert by_id[idle["id"]]["can_delete"] is True
+    assert "internal_note" not in by_id[busy["id"]]
+
+
+def test_admin_overview_includes_inactive_and_filters(env):
+    env.db["courses"].append(make_course("OLD101", "Retired", semester=1, active=False))
+    h = as_user(env, ADMIN)
+    assert "OLD101" in codes(env.client.get("/api/courses/admin/overview", headers=h))
+    assert codes(env.client.get("/api/courses/admin/overview?q=old", headers=h)) == ["OLD101"]
+    assert env.client.get("/api/courses/admin/overview?semester=99", headers=h).status_code == 422
+
+
+def test_admin_overview_is_admin_only(env):
+    assert env.client.get("/api/courses/admin/overview", headers=as_user(env, STUDENT)).status_code == 403
+    assert env.client.get("/api/courses/admin/overview").status_code in (401, 403)
+
+
+def test_students_cannot_open_an_inactive_course(env):
+    off = make_course("OLD101", "Retired", active=False)
+    env.db["courses"].append(off)
+    assert env.client.get(f"/api/courses/{off['id']}", headers=as_user(env, STUDENT)).status_code == 404
+    assert env.client.get(f"/api/courses/{off['id']}", headers=as_user(env, ADMIN)).status_code == 200
+
+
+def test_editing_to_a_taken_code_is_a_conflict(env):
+    env.state.fail_next = APIError({"code": "23505", "message": "duplicate key"})
+    r = env.client.patch(f"/api/courses/{env.db['courses'][0]['id']}", json={"course_code": "cse999"}, headers=as_user(env, ADMIN))
+    assert r.status_code == 409 and "already exists" in r.json()["detail"]

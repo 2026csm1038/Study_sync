@@ -201,3 +201,24 @@ def restore(submission_id: str) -> SubmissionRow | None:
 
 def delete_row(submission_id: str) -> None:
     _table().delete().eq("id", str(submission_id)).execute()
+
+
+# ---- used by Manage Courses ---------------------------------------------------------
+
+def count_by_course(course_id: str | None = None) -> dict[str, dict[str, int]]:
+    """{course_id: {status: how many}} for every course (or just one). Rows with no course yet are skipped."""
+    query = _table().select("course_id,status")
+    if course_id:
+        query = query.eq("course_id", str(course_id))
+    counts: dict[str, dict[str, int]] = {}
+    for row in query.limit(10000).execute().data:
+        if not row.get("course_id"):
+            continue
+        per_course = counts.setdefault(str(row["course_id"]), {})
+        per_course[row["status"]] = per_course.get(row["status"], 0) + 1
+    return counts
+
+
+def delete_rejected_for_course(course_id: str) -> None:
+    """Rejected uploads carry no file anywhere, so they can go when their course is deleted."""
+    _table().delete().eq("course_id", str(course_id)).eq("status", "rejected").execute()
