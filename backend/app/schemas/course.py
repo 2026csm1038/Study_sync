@@ -80,3 +80,11 @@ class CourseOut(BaseModel):
     is_active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class CourseAdminOut(CourseOut):
+    """What the admin's Manage Courses table gets: the course plus how much depends on it."""
+    resource_count: int = 0      # published papers
+    pending_count: int = 0       # papers waiting for approval
+    removed_count: int = 0       # soft-deleted papers (restorable, so they still tie the course down)
+    can_delete: bool = True      # false while any paper (published, pending or removed) is attached
