@@ -28,6 +28,11 @@ def list_requests(
     return review.list_requests(status, limit)
 
 
+@router.get("/my-activity", response_model=list[ReviewItem])
+def my_activity(admin: CurrentUser = Depends(require_admin)):
+    return review.my_activity(admin)
+
+
 @router.get("/{submission_id}/file")
 def preview_file(submission_id: UUID, _admin: CurrentUser = Depends(require_admin)):
     content, filename = review.preview(str(submission_id))

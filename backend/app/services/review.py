@@ -103,6 +103,11 @@ def list_requests(status: SubmissionStatus, limit: int) -> list[ReviewItem]:
     return _items(submissions.list_by_status(status, limit))
 
 
+def my_activity(admin: CurrentUser) -> list[ReviewItem]:
+    """New-course requests that this admin (and only this admin) approved or rejected."""
+    return _items([r for r in submissions.list_reviewed_by(admin.id) if r.new_course is not None])
+
+
 def preview(submission_id: str) -> tuple[bytes, str]:
     row = _get_pending(submission_id)
     if not row.storage_path:

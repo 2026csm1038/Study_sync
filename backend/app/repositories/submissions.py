@@ -110,6 +110,21 @@ def clear_storage_path(submission_id: str) -> bool:
     return bool(rows)
 
 
+def list_reviewed_by(admin_id: str, limit: int = 200) -> list[SubmissionRow]:
+    """Requests this admin approved or rejected, most recently reviewed first."""
+    rows = (
+        _table()
+        .select("*")
+        .eq("reviewed_by", admin_id)
+        .in_("status", ["approved", "rejected"])
+        .order("reviewed_at", desc=True)
+        .limit(limit)
+        .execute()
+        .data
+    )
+    return [SubmissionRow.model_validate(row) for row in rows]
+
+
 def decide(
     submission_id: str,
     *,
