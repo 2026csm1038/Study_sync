@@ -1,0 +1,22 @@
+/* Student Profile page (read-only). Builds on .st-page and .up-card. */
+.sp-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; margin-top: 20px; }
+.sp-columns .up-card { max-width: none; }
+.sp-col h2 { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sp-count { padding: 3px 12px; border-radius: 999px; background: #ece9ff; color: #5c4ee5; font-size: 13px; font-weight: 700; }
+.sp-filter { display: flex; align-items: flex-end; gap: 10px; margin-top: 20px; }
+.sp-filter label, .sp-view { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--dark); }
+.sp-filter input, .sp-view select { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; background: #fff; min-width: 240px; }
+.sp-filter button { display: inline-flex; align-items: center; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; font: inherit; }
+.sp-view { margin-bottom: 8px; }
+.sp-view select { width: 100%; }
+.sp-list { list-style: none; margin: 0; padding: 0; }
+.sp-list li { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-bottom: 1px solid #eef0f7; min-width: 0; }
+.sp-list li:last-child { border-bottom: 0; }
+.sp-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.sp-file { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.sp-note { font-size: 12px; color: #8a5b00; overflow-wrap: anywhere; }
+.sp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.sp-tag { padding: 2px 10px; border: 0; border-radius: 999px; background: #e5eefc; color: #3b6fd0; font-size: 12px; font-weight: 600; cursor: pointer; }
+.sp-pill-removed { background: #fdeeee; color: #a12a2a; }
+.sp-empty { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
+@media (max-width: 900px) { .sp-columns { grid-template-columns: 1fr; } }

@@ -7,17 +7,6 @@ import '../../upload.css'
 
 type Course = { id: string; course_code: string; course_name: string }
 
-type Mine = {
-  id: string
-  course_id: string | null
-  new_course: { code: string; name: string } | null
-  exam_type: string
-  exam_year: number
-  original_filename: string
-  status: 'pending' | 'approved' | 'rejected' | 'deleted'
-  rejection_reason: string | null
-}
-
 type Department = { id: string; name: string; code: string | null }
 
 /** Value of the course dropdown that means "type a new course instead". */
@@ -77,7 +66,6 @@ export default function UploadPdf() {
   const [showToast, setShowToast] = useState(false)
   // true when the upload needed a new course/department and was sent to the admin instead of being published
   const [sentForReview, setSentForReview] = useState(false)
-  const [mine, setMine] = useState<Mine[]>([])
   const [notice, setNotice] = useState('')
   const [rejection, setRejection] = useState('')
 
@@ -91,9 +79,6 @@ export default function UploadPdf() {
       .then(setDepartments)
       .catch(() => setDepartments([]))
   }, [])
-
-  const loadMine = () => api<Mine[]>('/api/submissions/mine').then(setMine).catch(() => undefined)
-  useEffect(() => { void loadMine() }, [])
 
   useEffect(() => {
     if (!showToast) return
@@ -178,7 +163,6 @@ export default function UploadPdf() {
     try {
       const saved = await submitResource(file)
       setSentForReview(saved.status === 'pending')
-      void loadMine()
       setShowToast(true)
       setForm(EMPTY_FORM)
       removeFile()
@@ -203,7 +187,7 @@ export default function UploadPdf() {
             <strong>{sentForReview ? 'Sent for admin approval' : 'Paper uploaded successfully'}</strong>
             <span>
               {sentForReview
-                ? 'The new course or department will be added once an admin approves it. You can follow it under Your uploads below.'
+                ? 'The new course or department will be added once an admin approves it. You can follow it under Your uploads on your Profile page.'
                 : 'Your PDF is now available in StudySync.'}
             </span>
           </div>
@@ -369,28 +353,6 @@ export default function UploadPdf() {
           </button>
         </div>
       </form>
-
-      {mine.length > 0 && (
-        <section className="up-card up-mine" aria-label="Your uploads">
-          <h2>Your uploads</h2>
-          <ul>
-            {mine.filter((m) => m.status !== 'deleted').map((m) => {
-              const code = m.new_course?.code ?? courses.find((c) => c.id === m.course_id)?.course_code ?? 'Course'
-              const label = { pending: 'Waiting for admin approval', approved: 'Published', rejected: 'Rejected' }[m.status as 'pending' | 'approved' | 'rejected']
-              return (
-                <li key={m.id}>
-                  <div>
-                    <strong>{code} · {m.exam_type} {m.exam_year}</strong>
-                    <span>{m.original_filename}</span>
-                    {m.status === 'rejected' && m.rejection_reason && <em>Reason: {m.rejection_reason}</em>}
-                  </div>
-                  <span className={`up-pill up-pill-${m.status}`}>{label}</span>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      )}
     </div>
   )
 }

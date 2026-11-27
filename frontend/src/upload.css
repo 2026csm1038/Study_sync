@@ -92,3 +92,12 @@
 .up-mine .up-pill-pending { background: #fff4d6; color: #8a5b00; }
 .up-mine .up-pill-approved { background: #eaf7ef; color: #247747; }
 .up-mine .up-pill-rejected { background: #fdeeee; color: #a12a2a; }
+
+.up-scroll { max-height: 360px; overflow-y: auto; }
+.up-tagbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.up-tagbar button { border: 1px solid #dfe3f0; background: #fff; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.up-tagbar button.on { background: #eef0ff; border-color: #6b73e6; font-weight: 700; }
+.up-flag-empty { margin: 0; font-size: 13px; color: var(--muted); }
+.up-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+.up-columns .up-mine { margin-top: 20px; min-width: 0; }
+@media (max-width: 900px) { .up-columns { grid-template-columns: 1fr; } }
