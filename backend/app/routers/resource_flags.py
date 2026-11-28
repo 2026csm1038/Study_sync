@@ -76,7 +76,7 @@ def my_flags(user: CurrentUser = Depends(get_current_user)):
 @router.get("", dependencies=[Depends(require_admin)])
 def list_flags(status: Literal["open", "resolved", "dismissed"] | None = None):
     query = admin().table("resource_flags").select(
-        "id,resource_id,reporter_id,reason,details,status,created_at,resource_submissions(original_filename,course_id,exam_year,exam_type,status,deletion_reason)"
+        "id,resource_id,deleted_resource_id,reporter_id,reason,details,status,created_at,resource_submissions(original_filename,course_id,exam_year,exam_type,status,deletion_reason)"
     ).order("created_at", desc=True)
     if status:
         query = query.eq("status", status)
@@ -89,6 +89,9 @@ def list_flags(status: Literal["open", "resolved", "dismissed"] | None = None):
     result = []
     for flag in flags:
         resource = flag.pop("resource_submissions", None) or {}
+        # Keep the original resource identifier available after permanent deletion.
+        flag["resource_id"] = flag.get("resource_id") or flag.get("deleted_resource_id")
+        flag.pop("deleted_resource_id", None)
         flag["resource"] = resource
         flag["reporter"] = names.get(str(flag["reporter_id"]), {})
         flag["weight"] = weight_for(flag["reporter"].get("role"))
@@ -168,6 +171,14 @@ def permanently_delete_resource(resource_id: UUID, _admin: CurrentUser = Depends
         raise Conflict("Remove the resource first; only removed resources can be deleted permanently.")
     if row.get("drive_file_id"):
         google_drive.delete_file_from_shared_drive(row["drive_file_id"])
-    admin().table("resource_flags").delete().eq("resource_id", str(resource_id)).execute()
+
+    # Preserve every report as resolved history. Copy the resource id into a
+    # non-FK column, then clear the FK so deleting the resource row cannot
+    # cascade-delete its reports.
+    (admin().table("resource_flags").update({
+        "status": "resolved",
+        "deleted_resource_id": str(resource_id),
+        "resource_id": None,
+    }).eq("resource_id", str(resource_id)).execute())
     submissions.delete_row(str(resource_id))
     return None

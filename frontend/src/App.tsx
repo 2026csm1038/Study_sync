@@ -13,7 +13,6 @@ import StudentSearch from './pages/student/StudentSearch'
 import UploadPdf from './pages/student/UploadPdf'
 import { AdminLayout } from './components/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
-import AdminProfile from './pages/admin/AdminProfile'
 import AdminUpload from './pages/admin/AdminUpload'
 import ManageCourses from './pages/admin/ManageCourses'
 import ManageFlags from './pages/admin/ManageFlags'
@@ -59,7 +58,6 @@ export default function App() {
               <Route path="/admin/courses" element={<ManageCourses />} />
               <Route path="/admin/reports" element={<ManageFlags />} />
               <Route path="/admin/upload" element={<AdminUpload />} />
-              <Route path="/admin/profile" element={<AdminProfile />} />
             </Route>
           </Route>
 

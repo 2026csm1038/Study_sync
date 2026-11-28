@@ -14,7 +14,7 @@ from ..repositories import courses, departments, submissions
 from ..schemas.course import CourseOut
 from ..schemas.department import DepartmentOut
 from ..schemas.submission import NewCourse, SubmissionCreate, SubmissionInsert, SubmissionOut, SubmissionRow
-from . import google_drive, storage
+from . import catalog, google_drive, storage
 
 MAX_BYTES = 2 * 1024 * 1024  # keep in sync with the student upload UI
 
@@ -97,19 +97,34 @@ def submit_paper(user: CurrentUser, data: SubmissionCreate, file: UploadFile) ->
     """Two routes, depending on whether the course already exists:
 
     existing course  -> straight to the shared Google Drive and published at once (status 'approved')
-    new course/dept  -> NOTHING is created yet. The PDF waits in temporary Supabase Storage and a
-                        'pending' request goes to the admin's Manage Requests. Approval (services/review.py)
-                        is what creates the course/department and moves the PDF to Drive.
+    new course/dept + professor -> create the course/department immediately, then publish the PDF
+    new course/dept + student   -> store the PDF temporarily and send a pending request for admin review
     """
     content = read_pdf(file)
 
     course = courses.get_course(data.course_id) if data.course_id else courses.find_by_code(data.course_code)
+    created_course = False
+    created_department = None
+
+    # Professors can add a missing course directly. Students still create a review request.
+    if course is None and user.role == "professor":
+        if not data.course_code or not data.course_name or not data.department or not data.semester:
+            raise BadRequest("Course code, course name, department and semester are required for a new course.")
+        course, created_course, created_department = catalog.get_or_create_course(
+            code=data.course_code,
+            name=data.course_name,
+            department=data.department,
+            semester=data.semester,
+        )
+
     if course is not None and not course.is_active:
+        _undo_catalog(course, created_course, created_department)
         raise BadRequest("This course is not accepting uploads.")
 
     sha256 = hashlib.sha256(content).hexdigest()
     reason = _duplicate_reason(course, data.exam_type, data.exam_year, sha256, data.course_code)
     if reason:
+        _undo_catalog(course, created_course, created_department)
         raise Conflict(reason)
 
     filename = _safe_filename(file.filename)
@@ -117,7 +132,11 @@ def submit_paper(user: CurrentUser, data: SubmissionCreate, file: UploadFile) ->
         return _submit_for_review(user, data, content, filename, sha256)
 
     drive_name = f"{course.course_code} · {data.exam_type} {data.exam_year} - {filename}"
-    uploaded = google_drive.upload_pdf_bytes_to_shared_drive(content, drive_name)
+    try:
+        uploaded = google_drive.upload_pdf_bytes_to_shared_drive(content, drive_name)
+    except Exception:
+        _undo_catalog(course, created_course, created_department)
+        raise
     drive_file_id = uploaded["file_id"]
     try:
         row = submissions.create(SubmissionInsert(
@@ -135,11 +154,13 @@ def submit_paper(user: CurrentUser, data: SubmissionCreate, file: UploadFile) ->
         ))
     except submissions.DuplicateSubmission as exc:
         google_drive.delete_file_from_shared_drive(drive_file_id)
+        _undo_catalog(course, created_course, created_department)
         raise Conflict(_duplicate_reason(course, data.exam_type, data.exam_year, sha256, data.course_code) or
                        "This paper was just uploaded by someone else.") from exc
     except Exception:
         # Compensate for a successful Drive upload if saving the details fails.
         google_drive.delete_file_from_shared_drive(drive_file_id)
+        _undo_catalog(course, created_course, created_department)
         raise
 
     return to_out(row)

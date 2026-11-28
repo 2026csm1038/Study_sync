@@ -1,22 +1,69 @@
-/* Student Profile page (read-only). Builds on .st-page and .up-card. */
-.sp-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; margin-top: 20px; }
-.sp-columns .up-card { max-width: none; }
-.sp-col h2 { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.sp-count { padding: 3px 12px; border-radius: 999px; background: #ece9ff; color: #5c4ee5; font-size: 13px; font-weight: 700; }
-.sp-filter { display: flex; align-items: flex-end; gap: 10px; margin-top: 20px; }
-.sp-filter label, .sp-view { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--dark); }
-.sp-filter input, .sp-view select { padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; background: #fff; min-width: 240px; }
-.sp-filter button { display: inline-flex; align-items: center; gap: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: #fff; cursor: pointer; font: inherit; }
-.sp-view { margin-bottom: 8px; }
-.sp-view select { width: 100%; }
-.sp-list { list-style: none; margin: 0; padding: 0; }
-.sp-list li { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-bottom: 1px solid #eef0f7; min-width: 0; }
-.sp-list li:last-child { border-bottom: 0; }
-.sp-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.sp-file { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
-.sp-note { font-size: 12px; color: #8a5b00; overflow-wrap: anywhere; }
-.sp-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
-.sp-tag { padding: 2px 10px; border: 0; border-radius: 999px; background: #e5eefc; color: #3b6fd0; font-size: 12px; font-weight: 600; cursor: pointer; }
-.sp-pill-removed { background: #fdeeee; color: #a12a2a; }
-.sp-empty { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
-@media (max-width: 900px) { .sp-columns { grid-template-columns: 1fr; } }
+/* Profile page for student and professor accounts. */
+.sp-page { max-width: 1120px; }
+.sp-page-heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+.sp-eyebrow { margin: 0 0 7px; color: var(--purple); font-size: 11px; font-weight: 800; letter-spacing: .13em; }
+.sp-page-heading .st-sub { margin-bottom: 0; }
+.sp-identity { display: grid; grid-template-columns: 76px minmax(180px, 1fr) minmax(240px, 1.2fr); align-items: center; gap: 20px; padding: 24px 26px; border: 1px solid #e5e7f1; border-radius: 18px; background: linear-gradient(115deg, #fff 0%, #f8f7ff 100%); box-shadow: var(--shadow-sm); }
+.sp-avatar { width: 72px; height: 72px; display: grid; place-items: center; border-radius: 22px; background: linear-gradient(135deg, #766af4, #5145d5); color: #fff; font-size: 25px; font-weight: 800; letter-spacing: -.04em; box-shadow: 0 8px 18px rgba(92, 78, 229, .22); }
+.sp-identity-main { min-width: 0; }
+.sp-identity-main h2 { margin: 0 0 9px; color: var(--dark); font-size: 21px; letter-spacing: -.4px; overflow-wrap: anywhere; }
+.sp-role { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: #eceaff; color: #5145c8; font-size: 12px; font-weight: 750; text-transform: capitalize; }
+.sp-role-professor { background: #e8f4ff; color: #23639a; }
+.sp-details { display: grid; gap: 11px; min-width: 0; padding-left: 22px; border-left: 1px solid #e5e7f1; }
+.sp-details div { display: flex; align-items: center; gap: 9px; min-width: 0; color: #626b80; font-size: 13px; }
+.sp-details svg { flex: 0 0 auto; color: #7771bd; }
+.sp-details span { overflow-wrap: anywhere; }
+.sp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; margin: 18px 0 24px; }
+.sp-stat-card { display: flex; align-items: center; gap: 14px; padding: 17px 19px; border: 1px solid #e7e8f1; border-radius: 15px; background: #fff; box-shadow: var(--shadow-sm); }
+.sp-stat-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 13px; }
+.sp-stat-purple { background: #efedff; color: #5c4ee5; }
+.sp-stat-green { background: #e8f7ef; color: #278255; }
+.sp-stat-orange { background: #fff2e7; color: #c16c2c; }
+.sp-stat-card div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sp-stat-card strong { color: var(--dark); font-size: 22px; line-height: 1.1; }
+.sp-stat-card div span { color: var(--muted); font-size: 12px; }
+.sp-activity { padding: 22px 24px; border: 1px solid #e5e7f1; border-radius: 17px; background: #fff; box-shadow: var(--shadow-sm); }
+.sp-activity-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.sp-activity-heading h2 { margin: 0 0 5px; color: var(--dark); font-size: 18px; }
+.sp-activity-heading p { margin: 0; color: var(--muted); font-size: 13px; }
+.sp-tabs { display: flex; gap: 5px; padding: 4px; border-radius: 11px; background: #f2f3f9; }
+.sp-tabs button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border: 0; border-radius: 8px; background: transparent; color: #687087; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sp-tabs button.active { background: #fff; color: var(--purple); box-shadow: 0 1px 4px rgba(23, 32, 51, .1); }
+.sp-tabs button span { display: inline-grid; min-width: 19px; height: 19px; place-items: center; padding: 0 5px; border-radius: 999px; background: #eeedff; color: #5145c8; font-size: 10px; }
+.sp-activity-list { list-style: none; margin: 0; padding: 0; }
+.sp-activity-item { display: flex; align-items: center; gap: 14px; padding: 15px 2px; border-top: 1px solid #eef0f6; }
+.sp-item-icon { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border-radius: 12px; background: #efedff; color: #5c4ee5; }
+.sp-item-icon-flag { background: #fff2e9; color: #c16c2c; }
+.sp-item-main { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.sp-item-main strong { color: var(--dark); font-size: 13px; }
+.sp-item-main span, .sp-item-main small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.sp-item-main em { color: #a12a2a; font-size: 12px; font-style: normal; }
+.sp-status { flex: 0 0 auto; padding: 5px 10px; border-radius: 999px; background: #f0f1f6; color: #5e667b; font-size: 11px; font-weight: 750; white-space: nowrap; }
+.sp-status-approved, .sp-status-resolved { background: #e8f7ef; color: #247747; }
+.sp-status-pending, .sp-status-open { background: #fff5dc; color: #8a5b00; }
+.sp-status-rejected, .sp-status-deleted, .sp-status-dismissed { background: #fdeeee; color: #a12a2a; }
+.sp-tag-filter { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 0 12px; }
+.sp-tag-filter button { padding: 5px 11px; border: 1px solid #e1e3ef; border-radius: 999px; background: #fff; color: #667087; font-size: 11px; cursor: pointer; }
+.sp-tag-filter button.active { border-color: #c9c3ff; background: #f0efff; color: #5145c8; font-weight: 700; }
+.sp-empty-state, .sp-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 190px; padding: 24px; color: #8a8fa2; text-align: center; }
+.sp-empty-state svg { color: #918be0; }
+.sp-empty-state strong { color: var(--dark); font-size: 14px; }
+.sp-empty-state span { max-width: 360px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.sp-error { margin: 0 0 12px; padding: 10px 12px; border-radius: 9px; background: #fff0f0; color: #a12a2a; font-size: 12px; }
+@media (max-width: 900px) {
+  .sp-identity { grid-template-columns: 64px minmax(0, 1fr); }
+  .sp-avatar { width: 62px; height: 62px; border-radius: 18px; }
+  .sp-details { grid-column: 1 / -1; padding: 15px 0 0; border-left: 0; border-top: 1px solid #e5e7f1; }
+}
+@media (max-width: 650px) {
+  .sp-page { padding: 26px 18px 40px; }
+  .sp-stats { grid-template-columns: 1fr; gap: 9px; }
+  .sp-stat-card { padding: 13px 15px; }
+  .sp-activity { padding: 18px 15px; }
+  .sp-activity-heading { align-items: flex-start; flex-direction: column; }
+  .sp-tabs { width: 100%; }
+  .sp-tabs button { flex: 1; justify-content: center; }
+  .sp-activity-item { align-items: flex-start; flex-wrap: wrap; }
+  .sp-item-main { flex-basis: calc(100% - 58px); }
+  .sp-status { margin-left: 56px; }
+}
