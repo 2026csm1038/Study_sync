@@ -37,10 +37,7 @@ export function AdminSidebar() {
 
         <hr className="st-divider" />
 
-        <NavLink to="/admin/profile" className="st-nav-link">
-          <CircleUser size={20} aria-hidden="true" />
-          <span>Profile</span>
-        </NavLink>
+       
         <button type="button" className="st-nav-link st-logout" onClick={handleLogout}>
           <LogOut size={20} aria-hidden="true" />
           <span>logout</span>

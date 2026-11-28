@@ -33,10 +33,14 @@ def _items(rows: list[SubmissionRow]) -> list[ReviewItem]:
         course, user = course_by_id.get(r.course_id), user_by_id.get(r.uploaded_by)
         wanted = r.new_course
         extra = {}
-        if course is None and wanted:
+        if wanted:
+            # Keep the request marker after approval, when course_id has been populated.
             extra = dict(
-                course_code=wanted.code, course_name=wanted.name, is_new_course=True,
-                department_name=wanted.department, semester=wanted.semester,
+                course_code=course.course_code if course else wanted.code,
+                course_name=course.course_name if course else wanted.name,
+                is_new_course=True,
+                department_name=wanted.department,
+                semester=wanted.semester,
                 is_new_department=departments.find_by_name_or_code(wanted.department) is None,
             )
         elif course:
@@ -100,7 +104,14 @@ def _cleanup_temporary_file(submission_id: str, storage_path: str) -> None:
 
 
 def list_requests(status: SubmissionStatus, limit: int) -> list[ReviewItem]:
-    return _items(submissions.list_by_status(status, limit))
+    # The Approved tab is a history of approved course requests, not a list of
+    # every paper that has been published for existing courses.
+    rows = submissions.list_by_status(
+        status,
+        limit,
+        course_requests_only=status == "approved",
+    )
+    return _items(rows)
 
 
 def my_activity(admin: CurrentUser) -> list[ReviewItem]:

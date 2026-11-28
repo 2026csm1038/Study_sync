@@ -83,13 +83,28 @@ def get_by_id(submission_id: str) -> SubmissionRow | None:
     return SubmissionRow.model_validate(rows[0]) if rows else None
 
 
-def list_by_status(status: SubmissionStatus, limit: int = 100) -> list[SubmissionRow]:
-    """Waiting requests come oldest first (first come, first reviewed); history comes newest first."""
+def list_by_status(
+    status: SubmissionStatus,
+    limit: int = 100,
+    *,
+    course_requests_only: bool = False,
+) -> list[SubmissionRow]:
+    """Waiting requests come oldest first; history comes newest first.
+
+    When requested, only return submissions that originally asked for a new course.
+    This filter is applied in the database before the limit so regular published
+    uploads cannot crowd course requests out of the approved history.
+    """
     newest_first = status != "pending"
-    rows = (
+    query = (
         _table()
         .select("*")
         .eq("status", status)
+    )
+    if course_requests_only:
+        query = query.not_.is_("new_course", "null")
+    rows = (
+        query
         .order("created_at", desc=newest_first)
         .limit(limit)
         .execute()

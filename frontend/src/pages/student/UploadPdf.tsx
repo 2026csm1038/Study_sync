@@ -60,6 +60,7 @@ export default function UploadPdf() {
   const [form, setForm] = useState<UploadForm>(EMPTY_FORM)
   const [courses, setCourses] = useState<Course[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
+  const [isProfessor, setIsProfessor] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -68,6 +69,13 @@ export default function UploadPdf() {
   const [sentForReview, setSentForReview] = useState(false)
   const [notice, setNotice] = useState('')
   const [rejection, setRejection] = useState('')
+
+  // Load the signed-in user's role so the page can explain the correct new-course workflow.
+  useEffect(() => {
+    api<{ role: string }>('/api/auth/me')
+      .then((profile) => setIsProfessor(profile.role === 'professor'))
+      .catch(() => setIsProfessor(false))
+  }, [])
 
   // Existing endpoint: any logged-in user can list active courses.
   useEffect(() => {
@@ -196,7 +204,9 @@ export default function UploadPdf() {
 
       <header>
         <h1>Upload Previous Year Paper</h1>
-        <p className="st-sub">Upload a PDF to StudySync. For an existing course it is available straight away; a new course or department is sent to an admin for approval first.</p>
+        <p className="st-sub">{isProfessor
+          ? 'Upload a PDF to StudySync. Existing courses are available straight away, and new courses you add are created immediately without admin review.'
+          : 'Upload a PDF to StudySync. For an existing course it is available straight away; a new course or department is sent to an admin for approval first.'}</p>
       </header>
 
       <form className="up-card" onSubmit={handleSubmit} noValidate>
@@ -244,7 +254,7 @@ export default function UploadPdf() {
                   {c.course_code} · {c.course_name}
                 </option>
               ))}
-              <option value={NEW_COURSE}>+ My course isn't listed (needs admin approval)</option>
+              <option value={NEW_COURSE}>{isProfessor ? '+ Add a new course' : "+ My course isn't listed (needs admin approval)"}</option>
             </select>
             {errors.courseId && <em className="up-error">{errors.courseId}</em>}
           </label>
